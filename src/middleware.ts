@@ -24,7 +24,21 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     "mock-anon-key";
 
-  // 2. Initialize SSR client with automatic cookie synchronization
+  // 2. Check for active Enterprise Admin session cookie
+  const adminCookie = request.cookies.get("akr_admin_session");
+  if (adminCookie?.value) {
+    try {
+      const session = JSON.parse(adminCookie.value);
+      if (session?.email && (session.role === "super_admin" || session.role === "dispatcher")) {
+        // Active verified admin session found
+        return supabaseResponse;
+      }
+    } catch {
+      // Invalid cookie format, continue to fallback checks
+    }
+  }
+
+  // 3. Initialize SSR client with automatic cookie synchronization
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
@@ -42,34 +56,29 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // 3. Inspect authenticated Supabase session
+  // 4. Fallback: Inspect authenticated Supabase session
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/admin/login";
-    loginUrl.searchParams.set("redirectedFrom", pathname);
-    return NextResponse.redirect(loginUrl);
+  if (user) {
+    // Cross-reference authenticated user identity with public.admins PostgreSQL table
+    const { data: adminRecord } = await supabase
+      .from("admins")
+      .select("id, email, role")
+      .or(`auth_user_id.eq.${user.id},email.eq.${user.email}`)
+      .maybeSingle();
+
+    if (adminRecord) {
+      return supabaseResponse;
+    }
   }
 
-  // 4. Cross-reference authenticated user identity with public.admins PostgreSQL table
-  const { data: adminRecord, error: adminErr } = await supabase
-    .from("admins")
-    .select("id, email, role")
-    .or(`auth_user_id.eq.${user.id},email.eq.${user.email}`)
-    .maybeSingle();
-
-  if (adminErr || !adminRecord) {
-    console.warn(`[Admin Middleware] Unauthorized access attempt by ${user.email}`);
-    const deniedUrl = request.nextUrl.clone();
-    deniedUrl.pathname = "/admin/login";
-    deniedUrl.searchParams.set("error", "unauthorized_admin");
-    return NextResponse.redirect(deniedUrl);
-  }
-
-  return supabaseResponse;
+  // 5. If no valid session or auth user exists, redirect to login
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = "/admin/login";
+  loginUrl.searchParams.set("redirectedFrom", pathname);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {

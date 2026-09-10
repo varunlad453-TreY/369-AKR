@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, { params }: Context) {
       console.warn("[Regenerate Code] Audit log warning:", auditErr);
     }
 
-    return NextResponse.json({ success: true, vendorCode: newCode });
+    return NextResponse.json({ success: true, newVendorCode: newCode, vendorCode: newCode });
   } catch (err: unknown) {
     console.error("[Regenerate Vendor Code Error]", err);
     return NextResponse.json(

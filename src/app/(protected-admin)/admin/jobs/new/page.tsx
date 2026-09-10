@@ -83,8 +83,26 @@ export default function NewJobDispatchPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !siteAddress.trim() || !capacityKwp) {
-      setError("Please fill in project title, site address, and system capacity.");
+
+    // Client-side validation before hitting the API
+    if (!title.trim()) {
+      setError("Project title is required.");
+      return;
+    }
+    if (title.trim().length < 5) {
+      setError("Project title must be at least 5 characters.");
+      return;
+    }
+    if (!siteAddress.trim() || siteAddress.trim().length < 5) {
+      setError("Site address is required (minimum 5 characters).");
+      return;
+    }
+    if (!capacityKwp || Number(capacityKwp) <= 0) {
+      setError("System capacity must be a positive number.");
+      return;
+    }
+    if (!subcontractorId) {
+      setError("Please select a partner contractor.");
       return;
     }
 
@@ -104,10 +122,9 @@ export default function NewJobDispatchPage() {
           city: city.trim(),
           state: state.trim(),
           pincode: pincode.trim(),
-          gpsCoordinates: {
-            lat: Number(latitude) || 28.8955,
-            lng: Number(longitude) || 76.6066,
-          },
+          // Schema expects flat gpsLat/gpsLng fields, not a nested object
+          gpsLat: Number(latitude) || 28.8955,
+          gpsLng: Number(longitude) || 76.6066,
           subcontractorId,
           scheduledStart: new Date(scheduledStart).toISOString(),
           scheduledEnd: new Date(scheduledEnd).toISOString(),
@@ -116,7 +133,10 @@ export default function NewJobDispatchPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to dispatch solar job");
+        // Show the API validation error in the red banner (never throw)
+        setError(data.error || "Failed to dispatch solar job. Please check all fields.");
+        setSubmitting(false);
+        return;
       }
 
       // Success! Navigate to projects list
@@ -124,7 +144,7 @@ export default function NewJobDispatchPage() {
       router.refresh();
     } catch (err: unknown) {
       console.error("Dispatch job error", err);
-      setError(err instanceof Error ? err.message : "Error dispatching job");
+      setError("Network error — please check your connection and try again.");
       setSubmitting(false);
     }
   };

@@ -13,6 +13,7 @@ import {
   Calendar,
   Zap,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { Job, Subcontractor, JobStatus } from "@/types";
 import { formatKwp } from "@/lib/utils";
@@ -63,6 +64,8 @@ export default function AdminJobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -115,6 +118,32 @@ export default function AdminJobsPage() {
     return sub ? sub.companyName : subId;
   };
 
+  const handleDeleteJob = async (job: Job) => {
+    const confirmed = confirm(
+      `DELETE PROJECT?\n\n"${job.title}" (${job.jobCode})\n\nThis will permanently remove the project and all uploaded documents. This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(job.id);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotification({ type: "success", msg: `Project ${data.deletedJobCode} has been permanently deleted.` });
+        setJobs((prev) => prev.filter((j) => j.id !== job.id));
+        setTimeout(() => setNotification(null), 6000);
+      } else {
+        setNotification({ type: "error", msg: data.error || "Failed to delete project." });
+        setTimeout(() => setNotification(null), 8000);
+      }
+    } catch {
+      setNotification({ type: "error", msg: "Network error — could not delete project." });
+      setTimeout(() => setNotification(null), 8000);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const filteredJobs = jobs.filter((job) => {
     const matchesSearch =
       job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -128,6 +157,19 @@ export default function AdminJobsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Notification Banner */}
+      {notification && (
+        <div
+          className={`p-3.5 rounded border text-xs flex items-center justify-between gap-2 shadow-xs ${
+            notification.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-red-50 border-red-200 text-red-700"
+          }`}
+        >
+          <span className="font-medium">{notification.msg}</span>
+          <button onClick={() => setNotification(null)} className="font-bold opacity-60 hover:opacity-100">&times;</button>
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -266,6 +308,15 @@ export default function AdminJobsPage() {
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span>Portal View</span>
                       </Link>
+                      <button
+                        onClick={() => handleDeleteJob(job)}
+                        disabled={deletingId === job.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded font-medium transition-colors cursor-pointer disabled:opacity-50"
+                        title="Permanently delete this project"
+                      >
+                        <Trash2 className={`w-3.5 h-3.5 ${deletingId === job.id ? "animate-pulse" : ""}`} />
+                        <span>{deletingId === job.id ? "Deleting..." : "Delete"}</span>
+                      </button>
                     </td>
                   </tr>
                 ))}

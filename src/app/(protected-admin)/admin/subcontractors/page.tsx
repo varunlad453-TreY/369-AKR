@@ -13,6 +13,7 @@ import {
   RotateCw,
   CheckCircle2,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { Subcontractor } from "@/types";
 import { createClient } from "@/lib/supabase/client";
@@ -22,7 +23,8 @@ export default function AdminSubcontractorsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
-  const [notification, setNotification] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   const fetchSubcontractors = async () => {
     setLoading(true);
@@ -76,16 +78,43 @@ export default function AdminSubcontractorsPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setNotification(`Successfully generated new Vendor Code for ${sub.companyName}: ${data.newVendorCode}`);
+        setNotification({ type: "success", msg: `New Vendor Code for ${sub.companyName}: ${data.newVendorCode}` });
         await fetchSubcontractors();
         setTimeout(() => setNotification(null), 8000);
       } else {
-        alert(data.error || "Could not regenerate code");
+        setNotification({ type: "error", msg: data.error || "Could not regenerate code" });
+        setTimeout(() => setNotification(null), 8000);
       }
-    } catch (err) {
-      alert("Network error regenerating code");
+    } catch {
+      setNotification({ type: "error", msg: "Network error regenerating code" });
     } finally {
       setRegeneratingId(null);
+    }
+  };
+
+  const handleDeleteSubcontractor = async (sub: Subcontractor) => {
+    const confirmed = confirm(
+      `REMOVE CONTRACTOR?\n\n"${sub.companyName}"\nVendor Code: ${sub.vendorCode}\n\nThis will permanently remove them from the directory. Active jobs must be reassigned first. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(sub.id);
+    try {
+      const res = await fetch(`/api/subcontractors/${sub.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotification({ type: "success", msg: `${data.deletedCompany} has been removed from the contractor directory.` });
+        setSubcontractors((prev) => prev.filter((s) => s.id !== sub.id));
+        setTimeout(() => setNotification(null), 6000);
+      } else {
+        setNotification({ type: "error", msg: data.error || "Failed to remove contractor." });
+        setTimeout(() => setNotification(null), 10000);
+      }
+    } catch {
+      setNotification({ type: "error", msg: "Network error — could not delete contractor." });
+      setTimeout(() => setNotification(null), 8000);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -124,14 +153,24 @@ export default function AdminSubcontractorsPage() {
 
       {/* Notification Banner */}
       {notification && (
-        <div className="p-3.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between gap-2 shadow-xs">
+        <div
+          className={`p-3.5 rounded border text-xs flex items-center justify-between gap-2 shadow-xs ${
+            notification.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-red-50 border-red-200 text-red-700"
+          }`}
+        >
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span className="font-medium">{notification}</span>
+            {notification.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+            )}
+            <span className="font-medium">{notification.msg}</span>
           </div>
           <button
             onClick={() => setNotification(null)}
-            className="text-emerald-700 hover:text-emerald-900 text-xs font-bold"
+            className="font-bold opacity-60 hover:opacity-100"
           >
             &times;
           </button>
@@ -226,11 +265,11 @@ export default function AdminSubcontractorsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-4 text-right whitespace-nowrap">
+                    <td className="px-5 py-4 text-right whitespace-nowrap space-x-2">
                       <button
                         onClick={() => handleRegenerateCode(sub)}
-                        disabled={regeneratingId === sub.id}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-300 rounded font-medium transition-colors cursor-pointer"
+                        disabled={regeneratingId === sub.id || deletingId === sub.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-300 rounded font-medium transition-colors cursor-pointer disabled:opacity-50"
                         title="Generate a new secure Vendor Code"
                       >
                         <RotateCw
@@ -238,7 +277,16 @@ export default function AdminSubcontractorsPage() {
                             regeneratingId === sub.id ? "animate-spin" : ""
                           }`}
                         />
-                        <span>Regenerate Code</span>
+                        <span>Regen Code</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSubcontractor(sub)}
+                        disabled={deletingId === sub.id || regeneratingId === sub.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded font-medium transition-colors cursor-pointer disabled:opacity-50"
+                        title="Permanently remove contractor from directory"
+                      >
+                        <Trash2 className={`w-3.5 h-3.5 ${deletingId === sub.id ? "animate-pulse" : ""}`} />
+                        <span>{deletingId === sub.id ? "Removing..." : "Delete"}</span>
                       </button>
                     </td>
                   </tr>

@@ -185,3 +185,18 @@ When omitted, the system operates in safe sandbox simulation mode for developer 
 | **CAD Schematics / Blueprints** | Strict Presigned S3 URLs with expiration | Bucket RLS read policy | **PASSED** |
 | **Proof-of-Work Uploads** | Geodetic GPS watermarking (`navigator.geolocation`) | Sub-meter coordinate validation | **PASSED** |
 | **Audit Ledger (`/admin/audit-logs`)** | Immutable append-only trigger table | Automated PostgreSQL triggers | **PASSED** |
+
+---
+
+## 6. Summary of Git Commits
+
+All changes are committed and pushed to `origin main` on [`https://github.com/varunlad453-TreY/369-AKR.git`](https://github.com/varunlad453-TreY/369-AKR.git):
+
+```text
+5279708 (HEAD -> main, origin/main) feat(portal): implement Subcontractor Operations Portal (SOP) enterprise upgrade
+```
+
+**Committed By**: `varun <varunlad453@gmail.com>`  
+**Branch**: `main` ➔ `origin/main`  
+**Total Changes**: 41 files changed, 7,208 insertions(+)  
+

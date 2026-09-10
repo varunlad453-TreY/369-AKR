@@ -217,7 +217,7 @@ export async function GET(req: NextRequest, { params }: Context) {
 </head>
 <body>
   <div class="print-actions">
-    <button class="btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
   </div>
 
   <table class="header-table">

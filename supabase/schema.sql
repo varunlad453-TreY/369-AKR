@@ -66,9 +66,16 @@ CREATE TABLE IF NOT EXISTS public.subcontractors (
     state_region TEXT NOT NULL DEFAULT 'Haryana',
     is_active BOOLEAN NOT NULL DEFAULT true,
     rating NUMERIC(3,2) DEFAULT 5.00,
+    otp_hash TEXT,
+    otp_expires_at TIMESTAMPTZ,
+    otp_attempts INT DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS otp_hash TEXT;
+ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMPTZ;
+ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS otp_attempts INT DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_subcontractors_phone ON public.subcontractors(phone_number);
 CREATE INDEX IF NOT EXISTS idx_subcontractors_vendor_code ON public.subcontractors(vendor_code);
@@ -344,3 +351,24 @@ VALUES
     ('SYSTEM_INIT', 'SYSTEM', 'system@369akruniverse.in', 'system', '{"message": "369 AKR UNIVERSE Supabase Database initialized successfully"}'::jsonb),
     ('SUBCONTRACTOR_ONBOARDED', 'ADMIN', 'dispatcher@369akruniverse.in', 'subcontractors', '{"vendorCode": "AKR-JOB-7K9M-SEC", "companyName": "SuryaShakti EPC Infrastructure Ltd."}'::jsonb),
     ('JOB_DISPATCHED', 'ADMIN', 'dispatcher@369akruniverse.in', 'jobs', '{"jobCode": "AKR-2026-ROH-001", "capacityKwp": 350.00}'::jsonb);
+
+-- 13. SUPABASE STORAGE BUCKETS & POLICIES
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('job-documents', 'job-documents', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS "Public Access to job-documents" ON storage.objects;
+CREATE POLICY "Public Access to job-documents"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'job-documents');
+
+DROP POLICY IF EXISTS "Allow portal uploads to job-documents" ON storage.objects;
+CREATE POLICY "Allow portal uploads to job-documents"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'job-documents');
+
+DROP POLICY IF EXISTS "Allow portal updates to job-documents" ON storage.objects;
+CREATE POLICY "Allow portal updates to job-documents"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'job-documents');
+

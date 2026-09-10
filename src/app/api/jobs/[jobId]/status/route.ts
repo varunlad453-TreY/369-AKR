@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/state/mock-db";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { JobStatus } from "@/types";
 
 interface Context {
@@ -30,63 +30,122 @@ export async function PATCH(req: NextRequest, { params }: Context) {
       );
     }
 
-    const updatedJob = db.updateJobStatus(jobId, status, {
-      id: actorIdentifier,
-      role: actorRole,
-      identifier: actorIdentifier,
-    });
+    const supabase = await createServerSupabaseClient();
 
-    if (!updatedJob) {
+    // 1. Resolve Target Job ID
+    let targetId = jobId;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId);
+
+    const { data: existingJob, error: findError } = isUuid
+      ? await supabase.from("jobs").select("*").eq("id", jobId).maybeSingle()
+      : await supabase.from("jobs").select("*").or(`job_code.eq.${jobId},id.eq.${jobId}`).maybeSingle();
+
+    if (findError || !existingJob) {
       return NextResponse.json(
         { success: false, error: "Job not found" },
         { status: 404 }
       );
     }
 
-    // Auto-generate DISCOM Commissioning Report on project completion
+    targetId = existingJob.id;
+
+    // 2. Update status in PostgreSQL jobs table
+    const updatePayload: Record<string, unknown> = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
+
     if (status === "completed") {
-      const existingDocs = db.getJobById(jobId)?.documents || [];
-      const hasReport = existingDocs.some((d) => d.documentType === "commissioning_report");
-      if (!hasReport) {
-        const reportFileName = `DISCOM_COMMISSIONING_REPORT_${updatedJob.jobCode}.pdf`;
-        db.addDocument({
-          jobId,
-          documentType: "commissioning_report",
-          fileName: reportFileName,
-          fileSize: 1850000,
-          mimeType: "application/pdf",
-          storagePath: `commissioning-reports/${jobId}/${Date.now()}_${reportFileName}`,
-          downloadUrl: `/api/jobs/${jobId}/commissioning-report`,
-          uploadedBy: actorIdentifier,
-          uploaderRole: actorRole,
-          geotag: updatedJob.gpsCoordinates
-            ? {
-                latitude: updatedJob.gpsCoordinates.lat,
-                longitude: updatedJob.gpsCoordinates.lng,
-                accuracy: 3.5,
-                timestamp: new Date().toISOString(),
-              }
-            : undefined,
+      updatePayload.completed_at = new Date().toISOString();
+    }
+
+    const { data: updatedJob, error: updateError } = await supabase
+      .from("jobs")
+      .update(updatePayload)
+      .eq("id", targetId)
+      .select()
+      .single();
+
+    if (updateError || !updatedJob) {
+      console.error("[Job Status Update DB Error]", updateError);
+      return NextResponse.json(
+        { success: false, error: updateError?.message || "Failed to update job status in database" },
+        { status: 500 }
+      );
+    }
+
+    // 3. Auto-generate DISCOM Commissioning Report on project completion
+    if (status === "completed") {
+      const { data: existingDocs } = await supabase
+        .from("job_documents")
+        .select("id")
+        .eq("job_id", targetId)
+        .eq("document_type", "commissioning_report");
+
+      if (!existingDocs || existingDocs.length === 0) {
+        const reportFileName = `DISCOM_COMMISSIONING_REPORT_${updatedJob.job_code}.pdf`;
+
+        await supabase.from("job_documents").insert({
+          job_id: targetId,
+          document_type: "commissioning_report",
+          file_name: reportFileName,
+          file_size: 1850000,
+          mime_type: "application/pdf",
+          storage_path: `commissioning-reports/${targetId}/${Date.now()}_${reportFileName}`,
+          downloadUrl: `/api/jobs/${targetId}/commissioning-report`,
+          uploaded_by: actorIdentifier,
+          uploader_role: actorRole === "ADMIN" ? "ADMIN" : "SUBCONTRACTOR",
+          geotag: (updatedJob.gps_lat && updatedJob.gps_lng) ? {
+            latitude: updatedJob.gps_lat,
+            longitude: updatedJob.gps_lng,
+            accuracy: 3.5,
+            timestamp: new Date().toISOString(),
+          } : null,
           metadata: {
             discomAuthority: `${updatedJob.state} State Electricity Board`,
-            systemCapacityKwp: updatedJob.capacityKwp,
+            systemCapacityKwp: updatedJob.capacity_kwp,
           },
         });
 
-        db.log({
+        await supabase.from("audit_logs").insert({
           action: "COMMISSIONING_REPORT_GENERATED",
-          actorType: "SYSTEM",
-          actorIdentifier: "discom-engine@369akruniverse.in",
-          resourceId: jobId,
-          resourceType: "job_documents",
-          metadata: { jobCode: updatedJob.jobCode },
+          actor_type: "SYSTEM",
+          actor_identifier: "discom-engine@369akruniverse.in",
+          resource_id: targetId,
+          resource_type: "jobs",
+          metadata: { jobCode: updatedJob.job_code },
         });
       }
     }
 
-    const finalJob = db.getJobById(jobId) || updatedJob;
-    return NextResponse.json({ success: true, job: finalJob });
+    // 4. Construct normalized camelCase Job response
+    const jobResponse = {
+      id: updatedJob.id,
+      jobCode: updatedJob.job_code,
+      title: updatedJob.title,
+      description: updatedJob.description,
+      siteAddress: updatedJob.site_address,
+      city: updatedJob.city,
+      state: updatedJob.state,
+      pincode: updatedJob.pincode,
+      gpsCoordinates: {
+        lat: updatedJob.gps_lat,
+        lng: updatedJob.gps_lng,
+      },
+      capacityKwp: Number(updatedJob.capacity_kwp),
+      systemType: updatedJob.system_type,
+      status: updatedJob.status,
+      subcontractorId: updatedJob.subcontractor_id,
+      createdBy: updatedJob.created_by,
+      scheduledStart: updatedJob.scheduled_start,
+      scheduledEnd: updatedJob.scheduled_end,
+      completedAt: updatedJob.completed_at,
+      notes: updatedJob.notes,
+      createdAt: updatedJob.created_at,
+      updatedAt: updatedJob.updated_at,
+    };
 
+    return NextResponse.json({ success: true, job: jobResponse });
   } catch (err: unknown) {
     console.error("[Update Job Status Error]", err);
     return NextResponse.json(

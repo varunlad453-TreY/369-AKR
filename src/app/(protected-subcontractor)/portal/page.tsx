@@ -8,18 +8,59 @@ import {
   MapPin,
   Calendar,
   Zap,
-  FileText,
   Clock,
-  CheckCircle,
-  AlertCircle,
+  CheckCircle2,
   PhoneCall,
-  Shield,
+  ShieldCheck,
   ArrowRight,
   ExternalLink,
   ChevronRight,
+  Building2,
+  RefreshCw,
 } from "lucide-react";
 import { Job, Subcontractor } from "@/types";
-import { formatKwp, formatDateTime } from "@/lib/utils";
+import { formatKwp } from "@/lib/utils";
+
+function StatusBadge({ status }: { status: Job["status"] }) {
+  switch (status) {
+    case "assigned":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-300">
+          Assigned
+        </span>
+      );
+    case "en_route":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-sky-50 text-sky-700 border border-sky-300">
+          En Route
+        </span>
+      );
+    case "on_site":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-blue-50 text-blue-700 border border-blue-300">
+          On Site
+        </span>
+      );
+    case "in_progress":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-amber-50 text-amber-800 border border-amber-300">
+          In Progress
+        </span>
+      );
+    case "completed":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-emerald-50 text-emerald-800 border border-emerald-300">
+          Completed
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 text-slate-600 border border-slate-200">
+          {status}
+        </span>
+      );
+  }
+}
 
 function PortalContent() {
   const searchParams = useSearchParams();
@@ -32,15 +73,15 @@ function PortalContent() {
   useEffect(() => {
     async function loadPortalData() {
       try {
-        // Fetch Subcontractor Info
         const subRes = await fetch("/api/subcontractors");
         const subData = await subRes.json();
         if (subData.success) {
-          const matched = subData.subcontractors.find((s: Subcontractor) => s.id === subId) || subData.subcontractors[0];
+          const matched =
+            subData.subcontractors.find((s: Subcontractor) => s.id === subId) ||
+            subData.subcontractors[0];
           setSubcontractor(matched);
         }
 
-        // Fetch Assigned Jobs
         const jobsRes = await fetch(`/api/jobs?subcontractorId=${subId}`);
         const jobsData = await jobsRes.json();
         if (jobsData.success) {
@@ -58,10 +99,10 @@ function PortalContent() {
 
   if (loading) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-amber-400 font-mono">
-          <div className="w-8 h-8 border-3 border-amber-400 border-t-transparent rounded-full animate-spin" />
-          <span>Synchronizing Field Operations Gateway...</span>
+      <div className="min-h-[60vh] flex items-center justify-center bg-slate-50">
+        <div className="flex items-center gap-2 text-slate-600 font-mono text-xs">
+          <RefreshCw className="w-4 h-4 animate-spin text-slate-500" />
+          <span>Synchronizing Field Gateway...</span>
         </div>
       </div>
     );
@@ -71,191 +112,181 @@ function PortalContent() {
   const completedJobs = jobs.filter((j) => j.status === "completed");
   const totalKwp = jobs.reduce((acc, curr) => acc + curr.capacityKwp, 0);
 
-  const getStatusBadge = (status: Job["status"]) => {
-    switch (status) {
-      case "assigned":
-        return <span className="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-blue-950/60 text-blue-400 border border-blue-500/30">Assigned</span>;
-      case "en_route":
-        return <span className="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-purple-950/60 text-purple-400 border border-purple-500/30">En Route</span>;
-      case "on_site":
-        return <span className="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-cyan-950/60 text-cyan-400 border border-cyan-500/30">On Site</span>;
-      case "in_progress":
-        return <span className="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-amber-950/60 text-amber-400 border border-amber-500/30 animate-pulse">In Progress</span>;
-      case "completed":
-        return <span className="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-emerald-950/60 text-emerald-400 border border-emerald-500/30">Completed</span>;
-      default:
-        return <span className="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-slate-800 text-slate-400">{status}</span>;
-    }
-  };
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Subcontractor Header Profile Card */}
-      <div className="glass-panel rounded-2xl p-6 sm:p-8 border border-amber-500/30 mb-8 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full filter blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      {/* Top Banner / Breadcrumb */}
+      <div className="border-b border-slate-200 bg-white px-4 sm:px-6 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2 font-mono text-xs text-slate-500">
+            <span>OPERATIONS</span>
+            <span>/</span>
+            <span className="text-slate-800 font-semibold">SUBCONTRACTOR PORTAL</span>
+            <span>/</span>
+            <span className="text-slate-600">{subcontractor?.vendorCode || subId}</span>
+          </div>
 
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-[#FFD23F] flex items-center justify-center shrink-0">
-              <HardHat className="w-8 h-8" />
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Field Secure Channel Active
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {/* Contractor Profile Bar */}
+        <div className="bg-white border border-slate-200 rounded p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-slate-600" />
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+                {subcontractor?.companyName || "Field Partner Operations"}
+              </h1>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Verified Vendor
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-extrabold text-white">
-                  {subcontractor?.companyName || "Field Partner Operations"}
-                </h1>
-                <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
-                  Verified Contractor
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-600 font-mono">
+              <div>
+                <span className="text-slate-400">Supervisor:</span>{" "}
+                <span className="font-semibold text-slate-800">{subcontractor?.contactPerson}</span>
+              </div>
+              <div>
+                <span className="text-slate-400">Phone:</span>{" "}
+                <span className="text-slate-800">{subcontractor?.phoneNumber}</span>
+              </div>
+              <div>
+                <span className="text-slate-400">Vendor Code:</span>{" "}
+                <span className="font-semibold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                  {subcontractor?.vendorCode}
                 </span>
               </div>
-              <p className="text-slate-400 text-xs sm:text-sm mt-1">
-                Field Supervisor: <span className="text-white font-medium">{subcontractor?.contactPerson}</span> • Registered Mobile:{" "}
-                <span className="text-[#FFD23F] font-mono">{subcontractor?.phoneNumber}</span>
-              </p>
-              <div className="flex items-center gap-3 mt-3 text-xs font-mono">
-                <span className="text-slate-400">
-                  Active Vendor Code:{" "}
-                  <code className="bg-black/60 px-2 py-0.5 rounded text-[#FFD23F] border border-amber-500/30">
-                    {subcontractor?.vendorCode}
-                  </code>
-                </span>
-                <span className="text-slate-400">
-                  State / Hub: <span className="text-slate-200">{subcontractor?.stateRegion}</span>
-                </span>
+              <div>
+                <span className="text-slate-400">Hub:</span>{" "}
+                <span className="text-slate-800">{subcontractor?.stateRegion}</span>
               </div>
             </div>
           </div>
 
-          {/* Direct Dispatch Support Hotline */}
-          <div className="flex items-center gap-4 bg-[#080C14] border border-slate-800 rounded-xl p-4 shrink-0">
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-[#FFD23F]">
-              <PhoneCall className="w-5 h-5" />
-            </div>
+          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-3 rounded shrink-0">
+            <PhoneCall className="w-4 h-4 text-slate-500" />
             <div>
-              <div className="text-[11px] font-mono uppercase text-slate-400">AKR Dispatch Desk</div>
+              <div className="text-[10px] font-mono uppercase text-slate-500">AKR Dispatch Desk</div>
               <a
                 href="tel:+919812037550"
-                className="text-sm font-bold text-white hover:text-[#FFD23F] transition-colors"
+                className="text-xs font-mono font-bold text-slate-800 hover:text-blue-600 transition-colors"
               >
                 +91 98120 37550
               </a>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* KPI Stats Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-        <div className="glass-card rounded-xl p-6 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-2">
-            <span>Assigned Solar Capacity</span>
-            <Zap className="w-4 h-4 text-[#FFD23F]" />
+        {/* Metrics Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-white border border-slate-200 p-4 rounded">
+            <div className="text-[11px] font-mono uppercase text-slate-500 flex items-center justify-between">
+              <span>Assigned Solar Capacity</span>
+              <Zap className="w-3.5 h-3.5 text-slate-400" />
+            </div>
+            <div className="text-xl font-bold font-mono text-slate-900 mt-1">
+              {formatKwp(totalKwp)}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Across {jobs.length} project sites</div>
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-[#FFD23F] font-mono">
-            {formatKwp(totalKwp)}
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">Across {jobs.length} dispatched project sites</p>
-        </div>
 
-        <div className="glass-card rounded-xl p-6 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-2">
-            <span>Active Field Dispatches</span>
-            <Clock className="w-4 h-4 text-cyan-400" />
+          <div className="bg-white border border-slate-200 p-4 rounded">
+            <div className="text-[11px] font-mono uppercase text-slate-500 flex items-center justify-between">
+              <span>Active Field Dispatches</span>
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+            </div>
+            <div className="text-xl font-bold font-mono text-slate-900 mt-1">
+              {activeJobs.length}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Pending installation or sign-off</div>
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono">
-            {activeJobs.length}
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">Pending or in progress on-site</p>
-        </div>
 
-        <div className="glass-card rounded-xl p-6 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-2">
-            <span>Completed &amp; Commissioned</span>
-            <CheckCircle className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono">
-            {completedJobs.length}
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">Geotagged proof approved</p>
-        </div>
-      </div>
-
-      {/* Dispatched Projects List */}
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Assigned Installation Dispatches</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Select a project to review CAD schematics, single-line diagrams, and submit geotagged proof-of-work.
-            </p>
+          <div className="bg-white border border-slate-200 p-4 rounded">
+            <div className="text-[11px] font-mono uppercase text-slate-500 flex items-center justify-between">
+              <span>Commissioned Projects</span>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
+            <div className="text-xl font-bold font-mono text-emerald-700 mt-1">
+              {completedJobs.length}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Geotagged proof submitted</div>
           </div>
         </div>
 
-        {jobs.length === 0 ? (
-          <div className="glass-panel rounded-xl p-12 text-center border border-slate-800">
-            <HardHat className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-300 font-medium">No installation jobs assigned to this Vendor Code.</p>
-            <p className="text-xs text-slate-500 mt-1">Contact 369 AKR Central Dispatch to receive new dispatches.</p>
+        {/* High-Density Work Orders Data Table */}
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <div>
+              <h2 className="text-xs font-mono font-bold uppercase text-slate-700">
+                Assigned Work Orders ({jobs.length})
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Execute field milestones, download CAD schematics, and submit GPS-verified proof of work.
+              </p>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {jobs.map((job) => (
-              <div
-                key={job.id}
-                className="glass-card rounded-xl p-6 border border-slate-800 hover:border-amber-500/40 transition-all duration-300 group"
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                  {/* Left: Job Info */}
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="px-2 py-0.5 rounded bg-black text-[#FFD23F] font-mono text-xs font-bold border border-amber-500/30">
+
+          {jobs.length === 0 ? (
+            <div className="p-8 text-center text-xs font-mono text-slate-500">
+              No active work orders assigned to this vendor code.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-mono uppercase text-slate-500">
+                    <th className="px-4 py-2.5 font-semibold">Job Code</th>
+                    <th className="px-4 py-2.5 font-semibold">Project Title & Description</th>
+                    <th className="px-4 py-2.5 font-semibold">Capacity</th>
+                    <th className="px-4 py-2.5 font-semibold">Location</th>
+                    <th className="px-4 py-2.5 font-semibold">Execution Window</th>
+                    <th className="px-4 py-2.5 font-semibold">Status</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-mono">
+                  {jobs.map((job) => (
+                    <tr key={job.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
                         {job.jobCode}
-                      </span>
-                      {getStatusBadge(job.status)}
-                      <span className="text-xs font-mono text-slate-400">
-                        {job.systemType}
-                      </span>
-                    </div>
-
-                    <h3 className="text-lg font-bold text-white group-hover:text-[#FFD23F] transition-colors">
-                      {job.title}
-                    </h3>
-
-                    <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                      {job.description}
-                    </p>
-
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-1 font-mono">
-                      <div className="flex items-center gap-1.5 text-slate-300">
-                        <MapPin className="w-3.5 h-3.5 text-[#FFD23F]" />
-                        <span>{job.siteAddress}, {job.city}, {job.state}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-slate-300">
-                        <Zap className="w-3.5 h-3.5 text-[#FFD23F]" />
-                        <span className="font-bold text-[#FFD23F]">{formatKwp(job.capacityKwp)}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Window: {new Date(job.scheduledStart).toLocaleDateString()} - {new Date(job.scheduledEnd).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Actions */}
-                  <div className="flex items-center gap-3 lg:border-l lg:border-slate-800 lg:pl-6 shrink-0">
-                    <Link
-                      href={`/portal/job/${job.id}?subId=${subcontractor?.id}`}
-                      className="flex items-center gap-2 bg-[#FFD23F] hover:bg-[#ffe17d] text-black font-bold text-xs py-2.5 px-4 rounded-lg transition-colors shadow-md shadow-amber-500/10"
-                    >
-                      <span>Open Work Order</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                      </td>
+                      <td className="px-4 py-3 max-w-xs">
+                        <div className="font-semibold text-slate-900 truncate font-sans">{job.title}</div>
+                        <div className="text-[11px] text-slate-500 truncate font-sans">{job.description}</div>
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                        {formatKwp(job.capacityKwp)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap font-sans text-[11px]">
+                        {job.city}, {job.state}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-[11px]">
+                        {new Date(job.scheduledStart).toLocaleDateString()} - {new Date(job.scheduledEnd).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <StatusBadge status={job.status} />
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <Link
+                          href={`/portal/job/${job.id}?subId=${subcontractor?.id}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-mono text-[11px] font-medium rounded transition-colors"
+                        >
+                          <span>Open Order</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -265,7 +296,7 @@ export default function SubcontractorPortalPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[70vh] flex items-center justify-center text-amber-400 font-mono text-sm">
+        <div className="min-h-[60vh] flex items-center justify-center bg-slate-50 text-slate-600 font-mono text-xs">
           Loading Subcontractor Dashboard...
         </div>
       }

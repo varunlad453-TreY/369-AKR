@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/state/mock-db";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 interface Context {
   params: Promise<{ jobId: string }>;
@@ -8,11 +8,58 @@ interface Context {
 export async function GET(req: NextRequest, { params }: Context) {
   try {
     const { jobId } = await params;
-    const job = db.getJobById(jobId);
+    const supabase = await createServerSupabaseClient();
 
-    if (!job) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId);
+
+    const { data: jobRow, error: jobError } = isUuid
+      ? await supabase.from("jobs").select("*, subcontractors(*), job_documents(*)").eq("id", jobId).maybeSingle()
+      : await supabase.from("jobs").select("*, subcontractors(*), job_documents(*)").or(`job_code.eq.${jobId},id.eq.${jobId}`).maybeSingle();
+
+    if (jobError || !jobRow) {
       return NextResponse.json({ success: false, error: "Job not found" }, { status: 404 });
     }
+
+    const sub = jobRow.subcontractors as Record<string, unknown> | null;
+    const rawDocs = (jobRow.job_documents || []) as Array<Record<string, unknown>>;
+
+    const job = {
+      id: jobRow.id,
+      jobCode: jobRow.job_code,
+      title: jobRow.title,
+      description: jobRow.description,
+      siteAddress: jobRow.site_address,
+      city: jobRow.city,
+      state: jobRow.state,
+      pincode: jobRow.pincode,
+      gpsCoordinates: {
+        lat: jobRow.gps_lat,
+        lng: jobRow.gps_lng,
+      },
+      capacityKwp: Number(jobRow.capacity_kwp),
+      systemType: jobRow.system_type,
+      status: jobRow.status,
+      subcontractorId: jobRow.subcontractor_id,
+      subcontractor: sub ? {
+        id: String(sub.id),
+        companyName: String(sub.company_name),
+        contactPerson: String(sub.contact_person),
+        phoneNumber: String(sub.phone_number),
+        licenseNumber: sub.license_number ? String(sub.license_number) : undefined,
+        vendorCode: String(sub.vendor_code),
+        stateRegion: String(sub.state_region),
+      } : undefined,
+      documents: rawDocs.map((d) => ({
+        id: String(d.id),
+        documentType: String(d.document_type),
+        fileName: String(d.file_name),
+        downloadUrl: d.download_url ? String(d.download_url) : undefined,
+        createdAt: String(d.created_at),
+        geotag: d.geotag as { latitude: number; longitude: number; accuracy?: number; timestamp: string } | undefined,
+      })),
+      scheduledStart: jobRow.scheduled_start,
+      completedAt: jobRow.completed_at || new Date().toISOString(),
+    };
 
     const subcontractor = job.subcontractor;
     const documents = job.documents || [];
@@ -340,49 +387,68 @@ export async function GET(req: NextRequest, { params }: Context) {
 export async function POST(req: NextRequest, { params }: Context) {
   try {
     const { jobId } = await params;
-    const job = db.getJobById(jobId);
+    const supabase = await createServerSupabaseClient();
 
-    if (!job) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId);
+
+    const { data: jobRow, error: jobError } = isUuid
+      ? await supabase.from("jobs").select("*, subcontractors(*)").eq("id", jobId).maybeSingle()
+      : await supabase.from("jobs").select("*, subcontractors(*)").or(`job_code.eq.${jobId},id.eq.${jobId}`).maybeSingle();
+
+    if (jobError || !jobRow) {
       return NextResponse.json({ success: false, error: "Job not found" }, { status: 404 });
     }
 
-    const reportFileName = `DISCOM_COMMISSIONING_REPORT_${job.jobCode}.pdf`;
-    const storagePath = `commissioning-reports/${jobId}/${Date.now()}_${reportFileName}`;
+    const targetJobId = jobRow.id;
+    const reportFileName = `DISCOM_COMMISSIONING_REPORT_${jobRow.job_code}.pdf`;
+    const storagePath = `commissioning-reports/${targetJobId}/${Date.now()}_${reportFileName}`;
+    const subRecord = jobRow.subcontractors as Record<string, unknown> | null;
 
-    // Add commissioning report document into state and Supabase Storage record
-    const newDoc = db.addDocument({
-      jobId,
-      documentType: "commissioning_report",
-      fileName: reportFileName,
-      fileSize: 1850000,
-      mimeType: "application/pdf",
-      storagePath,
-      downloadUrl: `/api/jobs/${jobId}/commissioning-report`,
-      uploadedBy: "system-discom-generator",
-      uploaderRole: "ADMIN",
-      geotag: job.gpsCoordinates
-        ? {
-            latitude: job.gpsCoordinates.lat,
-            longitude: job.gpsCoordinates.lng,
-            accuracy: 3.5,
-            timestamp: new Date().toISOString(),
-          }
-        : undefined,
-      metadata: {
-        discomAuthority: `${job.state} State Electricity Board`,
-        systemCapacityKwp: job.capacityKwp,
-        verifiedSubcontractor: job.subcontractor?.companyName,
-      },
-    });
+    // Add commissioning report document into Supabase Storage / job_documents table
+    const { data: newDoc, error: docError } = await supabase
+      .from("job_documents")
+      .insert({
+        job_id: targetJobId,
+        document_type: "commissioning_report",
+        file_name: reportFileName,
+        file_size: 1850000,
+        mime_type: "application/pdf",
+        storage_path: storagePath,
+        download_url: `/api/jobs/${targetJobId}/commissioning-report`,
+        uploaded_by: "system-discom-generator",
+        uploader_role: "ADMIN",
+        geotag: (jobRow.gps_lat && jobRow.gps_lng) ? {
+          latitude: jobRow.gps_lat,
+          longitude: jobRow.gps_lng,
+          accuracy: 3.5,
+          timestamp: new Date().toISOString(),
+        } : null,
+        metadata: {
+          discomAuthority: `${jobRow.state} State Electricity Board`,
+          systemCapacityKwp: jobRow.capacity_kwp,
+          verifiedSubcontractor: subRecord?.company_name,
+        },
+      })
+      .select()
+      .single();
 
-    db.log({
-      action: "COMMISSIONING_REPORT_GENERATED",
-      actorType: "SYSTEM",
-      actorIdentifier: "discom-engine@369akruniverse.in",
-      resourceId: jobId,
-      resourceType: "job_documents",
-      metadata: { jobCode: job.jobCode, documentId: newDoc.id },
-    });
+    if (docError || !newDoc) {
+      console.error("[Create Commissioning Report Error]", docError);
+      return NextResponse.json({ success: false, error: docError?.message || "Failed to create report" }, { status: 500 });
+    }
+
+    try {
+      await supabase.from("audit_logs").insert({
+        action: "COMMISSIONING_REPORT_GENERATED",
+        actor_type: "SYSTEM",
+        actor_identifier: "discom-engine@369akruniverse.in",
+        resource_id: targetJobId,
+        resource_type: "job_documents",
+        metadata: { jobCode: jobRow.job_code, documentId: newDoc.id },
+      });
+    } catch (logErr) {
+      console.warn("[Commissioning Report] Audit log warning:", logErr);
+    }
 
     return NextResponse.json({ success: true, document: newDoc }, { status: 201 });
   } catch (err: unknown) {

@@ -2,47 +2,51 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  Shield,
+  Layers,
   Plus,
-  KeyRound,
-  HardHat,
-  Zap,
-  Clock,
-  CheckCircle,
-  AlertCircle,
   RotateCw,
   Search,
-  Building,
-  FileCheck2,
-  ExternalLink,
-  History,
-  Phone,
-  MapPin,
-  ChevronRight,
-  Filter,
-  Radio,
+  Users,
   FileText,
-  Activity,
+  History,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  LogOut,
+  X,
+  FileSpreadsheet,
   Download,
+  Building2,
+  RefreshCw,
+  SlidersHorizontal,
 } from "lucide-react";
-import { Job, Subcontractor, AuditLog } from "@/types";
+import { Job, Subcontractor, JobStatus } from "@/types";
 import { formatKwp, formatDateTime } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"jobs" | "subcontractors">("jobs");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Air Traffic Control: Realtime Socket State
-  const [realtimeStatus, setRealtimeStatus] = useState<string>("CONNECTED");
-  const [lastUpdatedJobId, setLastUpdatedJobId] = useState<string | null>(null);
-  const [realtimeNotice, setRealtimeNotice] = useState<string | null>(null);
+  // Realtime Connection & State
+  const [realtimeStatus, setRealtimeStatus] = useState<"CONNECTED" | "RECONNECTING" | "OFFLINE">("CONNECTED");
+  const [systemAlert, setSystemAlert] = useState<string | null>(null);
 
-  // New Job Modal State
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [regionFilter, setRegionFilter] = useState<string>("ALL");
+
+  // Modals
   const [showJobModal, setShowJobModal] = useState(false);
+  const [showSubModal, setShowSubModal] = useState(false);
+
+  // Job Form State
   const [newJobTitle, setNewJobTitle] = useState("");
   const [newJobDesc, setNewJobDesc] = useState("");
   const [newJobSite, setNewJobSite] = useState("");
@@ -54,37 +58,26 @@ export default function AdminDashboardPage() {
   const [newJobSubId, setNewJobSubId] = useState("");
   const [submittingJob, setSubmittingJob] = useState(false);
 
-  // New Subcontractor Modal State
-  const [showSubModal, setShowSubModal] = useState(false);
+  // Subcontractor Form State
   const [newSubName, setNewSubName] = useState("");
   const [newSubPerson, setNewSubPerson] = useState("");
   const [newSubPhone, setNewSubPhone] = useState("+91");
   const [newSubRegion, setNewSubRegion] = useState("Haryana / NCR");
+  const [newSubLicense, setNewSubLicense] = useState("");
   const [submittingSub, setSubmittingSub] = useState(false);
-
-  // Status message
-  const [notification, setNotification] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
       const supabase = createClient();
-
-      // Direct Supabase query to public.subcontractors table + API jobs
       const [jobsRes, { data: subData, error: subError }] = await Promise.all([
         fetch("/api/jobs"),
-        supabase
-          .from("subcontractors")
-          .select("*")
-          .order("created_at", { ascending: false }),
+        supabase.from("subcontractors").select("*").order("created_at", { ascending: false }),
       ]);
 
       const jobsData = await jobsRes.json();
       if (jobsData.success) setJobs(jobsData.jobs);
 
-      if (subError) {
-        console.error("[Supabase Subcontractors Fetch Error]", subError);
-      } else if (subData) {
-        // Map database snake_case columns to Subcontractor type
+      if (!subError && subData) {
         const mappedSubs: Subcontractor[] = subData.map((s) => ({
           id: s.id,
           authUserId: s.auth_user_id,
@@ -101,102 +94,63 @@ export default function AdminDashboardPage() {
           createdAt: s.created_at,
           updatedAt: s.updated_at,
         }));
-
         setSubcontractors(mappedSubs);
         if (mappedSubs.length > 0 && !newJobSubId) {
           setNewJobSubId(mappedSubs[0].id);
         }
       }
     } catch (err) {
-      console.error("Failed to load admin data", err);
+      console.error("[Data Fetch Error]", err);
     } finally {
       setLoading(false);
     }
   };
 
-
   useEffect(() => {
     fetchData();
 
-    // 1. Supabase PostgreSQL CDC Realtime Channel
     const supabase = createClient();
     const channel = supabase
-      .channel("admin-jobs-air-traffic")
+      .channel("admin-jobs-cdc-feed")
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "jobs",
-        },
+        { event: "UPDATE", schema: "public", table: "jobs" },
         (payload) => {
-          console.log("[Supabase Realtime CDC] UPDATE on jobs:", payload);
           const updated = payload.new as Job;
-          setJobs((prev) =>
-            prev.map((j) => (j.id === updated.id ? { ...j, ...updated } : j))
-          );
-          setLastUpdatedJobId(updated.id);
-          setRealtimeNotice(
-            `⚡ Realtime CDC Socket: ${updated.jobCode || updated.id} updated to "${updated.status.replace("_", " ").toUpperCase()}"`
-          );
-          setTimeout(() => {
-            setLastUpdatedJobId(null);
-            setRealtimeNotice(null);
-          }, 5000);
+          setJobs((prev) => prev.map((j) => (j.id === updated.id ? { ...j, ...updated } : j)));
+          setSystemAlert(`CDC Event: Job ${updated.jobCode || updated.id} transitioned to ${updated.status.toUpperCase()}`);
+          setTimeout(() => setSystemAlert(null), 5000);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "jobs",
-        },
+        { event: "INSERT", schema: "public", table: "jobs" },
         (payload) => {
-          console.log("[Supabase Realtime CDC] INSERT on jobs:", payload);
           const newJob = payload.new as Job;
           setJobs((prev) => [newJob, ...prev]);
-          setLastUpdatedJobId(newJob.id);
-          setRealtimeNotice(
-            `⚡ Realtime CDC Socket: New job dispatched (${newJob.jobCode || newJob.id})`
-          );
-          setTimeout(() => {
-            setLastUpdatedJobId(null);
-            setRealtimeNotice(null);
-          }, 5000);
+          setSystemAlert(`CDC Event: New Job ${newJob.jobCode || newJob.id} registered`);
+          setTimeout(() => setSystemAlert(null), 5000);
         }
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setRealtimeStatus("CONNECTED");
-        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-          setRealtimeStatus("RECONNECTING");
-        }
+        if (status === "SUBSCRIBED") setRealtimeStatus("CONNECTED");
+        else if (status === "CLOSED" || status === "CHANNEL_ERROR") setRealtimeStatus("RECONNECTING");
       });
 
-    // 2. BroadcastChannel: High-frequency cross-tab Air Traffic Control
     let bc: BroadcastChannel | null = null;
     if (typeof window !== "undefined" && "BroadcastChannel" in window) {
       try {
         bc = new BroadcastChannel("akr-air-traffic");
         bc.onmessage = (event) => {
-          if (event.data && event.data.type === "JOB_STATUS_UPDATED") {
+          if (event.data?.type === "JOB_STATUS_UPDATED") {
             const { jobId, newStatus, jobCode } = event.data;
-            setJobs((prev) =>
-              prev.map((j) => (j.id === jobId ? { ...j, status: newStatus } : j))
-            );
-            setLastUpdatedJobId(jobId);
-            setRealtimeNotice(
-              `⚡ Air Traffic Control: ${jobCode || jobId} marked "${newStatus.replace("_", " ").toUpperCase()}" without page reload`
-            );
-            setTimeout(() => {
-              setLastUpdatedJobId(null);
-              setRealtimeNotice(null);
-            }, 5000);
+            setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status: newStatus } : j)));
+            setSystemAlert(`Local Dispatch Signal: Job ${jobCode || jobId} status updated to ${newStatus.toUpperCase()}`);
+            setTimeout(() => setSystemAlert(null), 5000);
           }
         };
       } catch (e) {
-        console.warn("BroadcastChannel initialization error:", e);
+        console.warn("BroadcastChannel error:", e);
       }
     }
 
@@ -206,21 +160,20 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
-
-  const showToast = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 4000);
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+    router.refresh();
   };
 
-  // Handle Create Job
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmittingJob(true);
-
     try {
       const payload = {
         title: newJobTitle,
-        description: newJobDesc || "High-efficiency solar array installation with mandatory Discom net-metering synchronization.",
+        description: newJobDesc || "High-efficiency commercial solar PV installation.",
         siteAddress: newJobSite,
         city: newJobCity,
         state: newJobState,
@@ -245,23 +198,21 @@ export default function AdminDashboardPage() {
         setShowJobModal(false);
         setNewJobTitle("");
         setNewJobSite("");
-        showToast(`Job ${data.job.jobCode} created and assigned successfully!`);
+        setSystemAlert(`Job ${data.job.jobCode} created and allocated.`);
         fetchData();
       } else {
-        alert(data.error || "Failed to create job");
+        alert(data.error || "Job creation failed");
       }
     } catch {
-      alert("Job dispatch failed");
+      alert("Network failure creating job");
     } finally {
       setSubmittingJob(false);
     }
   };
 
-  // Handle Onboard Subcontractor
-  const handleOnboardSub = async (e: React.FormEvent) => {
+  const handleCreateSub = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmittingSub(true);
-
     try {
       const res = await fetch("/api/subcontractors", {
         method: "POST",
@@ -270,6 +221,7 @@ export default function AdminDashboardPage() {
           companyName: newSubName,
           contactPerson: newSubPerson,
           phoneNumber: newSubPhone,
+          licenseNumber: newSubLicense || undefined,
           stateRegion: newSubRegion,
         }),
       });
@@ -280,478 +232,609 @@ export default function AdminDashboardPage() {
         setNewSubName("");
         setNewSubPerson("");
         setNewSubPhone("+91");
-        showToast(`Subcontractor onboarded! Vendor Code: ${data.subcontractor.vendorCode}`);
+        setNewSubLicense("");
+        setSystemAlert(`Subcontractor ${data.subcontractor.companyName} onboarded.`);
         fetchData();
       } else {
-        alert(data.error || "Failed to onboard subcontractor");
+        alert(data.error || "Onboarding failed");
       }
     } catch {
-      alert("Subcontractor registration failed");
+      alert("Network error onboarding subcontractor");
     } finally {
       setSubmittingSub(false);
     }
   };
 
-  // Handle Regenerate Vendor Code
   const handleRegenerateCode = async (subId: string) => {
-    if (!confirm("Are you sure you want to revoke the current Vendor Code and generate a new cryptographic token?")) {
+    if (!confirm("Revoke active Vendor Code and issue a new cryptographic token for this subcontractor?")) {
       return;
     }
-
     try {
-      const res = await fetch(`/api/subcontractors/${subId}/regenerate-code`, {
-        method: "POST",
-      });
-
+      const res = await fetch(`/api/subcontractors/${subId}/regenerate-code`, { method: "POST" });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`New Vendor Code issued: ${data.vendorCode}`);
+        setSystemAlert(`New Vendor Code assigned: ${data.vendorCode}`);
         fetchData();
       } else {
         alert("Failed to regenerate code");
       }
     } catch {
-      alert("Error regenerating code");
+      alert("Request error regenerating code");
+    }
+  };
+
+  // Metrics Calculations
+  const totalKwp = jobs.reduce((acc, curr) => acc + curr.capacityKwp, 0);
+  const activeJobs = jobs.filter((j) => j.status !== "completed" && j.status !== "draft");
+  const onSiteJobs = jobs.filter((j) => j.status === "on_site" || j.status === "in_progress");
+  const completedJobs = jobs.filter((j) => j.status === "completed");
+
+  // Filtering
+  const filteredJobs = jobs.filter((j) => {
+    const matchesSearch =
+      j.jobCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      j.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      j.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (j.subcontractor?.companyName || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "ALL" || j.status === statusFilter;
+    const matchesRegion = regionFilter === "ALL" || j.state === regionFilter;
+    return matchesSearch && matchesStatus && matchesRegion;
+  });
+
+  const filteredSubs = subcontractors.filter((s) => {
+    return (
+      s.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.vendorCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.contactPerson.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.stateRegion.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
+
+  const getStatusBadge = (status: JobStatus) => {
+    switch (status) {
+      case "completed":
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">Completed</span>;
+      case "in_progress":
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-sky-50 text-sky-700 border border-sky-200">In Progress</span>;
+      case "on_site":
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">On Site</span>;
+      case "assigned":
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">Assigned</span>;
+      case "en_route":
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">En Route</span>;
+      case "inspection_pending":
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200">Inspection</span>;
+      case "rejected":
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200">Rejected</span>;
+      default:
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">Draft</span>;
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center text-amber-400 font-mono text-sm">
-        Initializing Central Admin Plane...
+      <div className="h-[calc(100vh-5rem)] flex items-center justify-center bg-slate-50 text-slate-600 font-mono text-xs">
+        Loading Enterprise Dispatch Console...
       </div>
     );
   }
 
-  const totalKwp = jobs.reduce((acc, curr) => acc + curr.capacityKwp, 0);
-  const activeJobs = jobs.filter((j) => j.status !== "completed");
-  const completedJobs = jobs.filter((j) => j.status === "completed");
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Toast Notification */}
-      {notification && (
-        <div className="fixed bottom-6 right-6 z-50 p-4 rounded-xl bg-emerald-950 border border-emerald-500 text-emerald-300 text-xs font-mono shadow-2xl flex items-center gap-3">
-          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-          <span>{notification}</span>
-        </div>
-      )}
-
-      {/* Admin Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-mono text-[#FFD23F] uppercase tracking-wider mb-1">
-            <Shield className="w-3.5 h-3.5" />
-            <span>369 AKR UNIVERSE • Operations Dispatch Plane</span>
+    <div className="flex min-h-[calc(100vh-5rem)] bg-slate-50 text-slate-900">
+      {/* Enterprise Side Navigation */}
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
+        <div className="p-4 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-slate-700" />
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-900">369 AKR UNIVERSE</div>
+              <div className="text-[10px] text-slate-500 font-mono">ERP Dispatch Plane v2.4</div>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Central Dispatch &amp; Subcontractor Management
-          </h1>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Realtime Socket Air Traffic Indicator */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 font-mono text-xs shadow-lg">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        <nav className="p-3 space-y-1 flex-1">
+          <button
+            onClick={() => setActiveTab("jobs")}
+            className={`w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded transition-colors ${
+              activeTab === "jobs"
+                ? "bg-slate-100 text-slate-900 font-semibold"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Layers className="w-4 h-4 text-slate-500" />
+              <span>Dispatch Queue</span>
+            </div>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded">
+              {jobs.length}
             </span>
-            <Radio className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="font-bold">AIR TRAFFIC CDC: {realtimeStatus}</span>
-          </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("subcontractors")}
+            className={`w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded transition-colors ${
+              activeTab === "subcontractors"
+                ? "bg-slate-100 text-slate-900 font-semibold"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Users className="w-4 h-4 text-slate-500" />
+              <span>Subcontractors</span>
+            </div>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded">
+              {subcontractors.length}
+            </span>
+          </button>
 
           <Link
             href="/admin/audit-logs"
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-mono font-medium rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
           >
-            <History className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Audit Ledger</span>
+            <div className="flex items-center gap-2.5">
+              <History className="w-4 h-4 text-slate-500" />
+              <span>Audit Ledger</span>
+            </div>
+            <ExternalLink className="w-3 h-3 text-slate-400" />
           </Link>
+        </nav>
+
+        {/* System Health / Status Widget */}
+        <div className="p-3 border-t border-slate-200 bg-slate-50 text-[11px] font-mono text-slate-600 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">CDC Stream:</span>
+            <span className="flex items-center gap-1.5 text-slate-800 font-semibold">
+              <span
+                className={`inline-block w-2 h-2 rounded-full ${
+                  realtimeStatus === "CONNECTED" ? "bg-emerald-500" : "bg-amber-500"
+                }`}
+              />
+              {realtimeStatus}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Active User:</span>
+            <span className="text-slate-800 truncate max-w-[120px]">dispatcher</span>
+          </div>
 
           <button
-            onClick={() => setShowJobModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-[#FFD23F] hover:bg-[#ffe17d] text-black transition-colors shadow-lg shadow-amber-500/10"
+            onClick={handleSignOut}
+            className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Dispatch New Job</span>
+            <LogOut className="w-3.5 h-3.5 text-slate-500" />
+            <span>Sign Out</span>
           </button>
         </div>
-      </div>
+      </aside>
 
-      {/* Realtime Event Flash Banner */}
-      {realtimeNotice && (
-        <div className="mb-6 p-4 rounded-xl bg-emerald-950/90 border border-emerald-500 text-emerald-200 font-mono text-xs flex items-center gap-3 shadow-2xl animate-in slide-in-from-top-3">
-          <Activity className="w-5 h-5 text-emerald-400 shrink-0 animate-pulse" />
-          <div className="flex-1 font-bold">{realtimeNotice}</div>
-        </div>
-      )}
-
-
-      {/* KPI Metrics Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="glass-card rounded-xl p-5 border border-slate-800">
-          <div className="text-slate-400 text-xs font-mono uppercase">Total Capacity Under Dispatch</div>
-          <div className="text-2xl font-extrabold text-[#FFD23F] font-mono mt-1">
-            {formatKwp(totalKwp)}
-          </div>
-        </div>
-
-        <div className="glass-card rounded-xl p-5 border border-slate-800">
-          <div className="text-slate-400 text-xs font-mono uppercase">Active Field Jobs</div>
-          <div className="text-2xl font-extrabold text-white font-mono mt-1">
-            {activeJobs.length}
-          </div>
-        </div>
-
-        <div className="glass-card rounded-xl p-5 border border-slate-800">
-          <div className="text-slate-400 text-xs font-mono uppercase">Partner Contractors</div>
-          <div className="text-2xl font-extrabold text-cyan-400 font-mono mt-1">
-            {subcontractors.length}
-          </div>
-        </div>
-
-        <div className="glass-card rounded-xl p-5 border border-slate-800">
-          <div className="text-slate-400 text-xs font-mono uppercase">Commissioned Sites</div>
-          <div className="text-2xl font-extrabold text-emerald-400 font-mono mt-1">
-            {completedJobs.length}
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-4 border-b border-slate-800 mb-6">
-        <button
-          onClick={() => setActiveTab("jobs")}
-          className={`pb-3 text-sm font-semibold transition-all relative ${
-            activeTab === "jobs"
-              ? "text-[#FFD23F]"
-              : "text-slate-400 hover:text-white"
-          }`}
-        >
-          <span>All Dispatched Jobs ({jobs.length})</span>
-          {activeTab === "jobs" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FFD23F]" />
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab("subcontractors")}
-          className={`pb-3 text-sm font-semibold transition-all relative ${
-            activeTab === "subcontractors"
-              ? "text-[#FFD23F]"
-              : "text-slate-400 hover:text-white"
-          }`}
-        >
-          <span>Registered Subcontractors ({subcontractors.length})</span>
-          {activeTab === "subcontractors" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FFD23F]" />
-          )}
-        </button>
-      </div>
-
-      {/* Tab 1: Jobs List */}
-      {activeTab === "jobs" && (
-        <div className="space-y-4">
-          {jobs.map((job) => (
-            <div
-              key={job.id}
-              className={`glass-panel rounded-xl p-5 border transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
-                lastUpdatedJobId === job.id
-                  ? "ring-2 ring-emerald-400 bg-emerald-950/40 border-emerald-500 shadow-xl shadow-emerald-500/20"
-                  : "border-slate-800 hover:border-amber-500/30"
-              }`}
-            >
-              <div className="space-y-1.5 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2 py-0.5 rounded bg-black text-[#FFD23F] font-mono text-xs font-bold border border-amber-500/30">
-                    {job.jobCode}
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[11px] font-mono uppercase ${
-                      job.status === "completed"
-                        ? "bg-emerald-950/70 text-emerald-300 border border-emerald-500/30"
-                        : job.status === "in_progress"
-                        ? "bg-amber-950/70 text-[#FFD23F] border border-amber-500/30"
-                        : "bg-slate-800 text-slate-300"
-                    }`}
-                  >
-                    {job.status.replace("_", " ")}
-                  </span>
-                  {lastUpdatedJobId === job.id && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-emerald-400 text-black font-extrabold animate-pulse">
-                      ⚡ LIVE CDC SYNC
-                    </span>
-                  )}
-                  <span className="text-xs text-slate-400 font-mono">
-                    {job.systemType}
-                  </span>
-                </div>
-
-                <h3 className="text-base font-bold text-white">
-                  {job.title}
-                </h3>
-
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 font-mono">
-                  <div className="flex items-center gap-1 text-slate-300">
-                    <MapPin className="w-3.5 h-3.5 text-[#FFD23F]" />
-                    <span>{job.siteAddress}, {job.city}, {job.state}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-[#FFD23F] font-bold">
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>{formatKwp(job.capacityKwp)}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-slate-300">
-                    <Building className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Assigned: {job.subcontractor?.companyName || "Subcontractor"}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                {job.status === "completed" && (
-                  <a
-                    href={`/api/jobs/${job.id}/commissioning-report`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-xs font-mono text-emerald-300 flex items-center gap-1.5 transition-colors shadow-sm"
-                    title="View official State Electricity Board Compliance Certificate"
-                  >
-                    <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>DISCOM Certificate</span>
-                  </a>
-                )}
-
-                <Link
-                  href={`/portal/job/${job.id}`}
-                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-mono text-slate-200 border border-slate-700 flex items-center gap-1"
-                >
-                  <span>Inspect Portal View</span>
-                  <ExternalLink className="w-3 h-3 text-[#FFD23F]" />
-                </Link>
-              </div>
+      {/* Main Workspace Area */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-auto">
+        {/* Top Control Header */}
+        <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-mono uppercase text-slate-500 tracking-wider">
+              Control Plane / {activeTab === "jobs" ? "Solar EPC Dispatch Queue" : "Contractor Directory"}
             </div>
-          ))}
-        </div>
-      )}
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              {activeTab === "jobs" ? "Project Dispatch & Field Queue" : "Registered Subcontractors"}
+            </h1>
+          </div>
 
-      {/* Tab 2: Subcontractors List */}
-      {activeTab === "subcontractors" && (
-        <div className="space-y-4">
-          <div className="flex justify-end mb-4">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowSubModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-[#FFD23F] border border-amber-500/30"
+              onClick={() => fetchData()}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              title="Refresh Data"
             >
-              <Plus className="w-4 h-4" />
-              <span>Onboard New Subcontractor Firm</span>
+              <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Refresh</span>
+            </button>
+
+            {activeTab === "jobs" ? (
+              <button
+                onClick={() => setShowJobModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-slate-300" />
+                <span>Dispatch Job</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowSubModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-slate-300" />
+                <span>Onboard Contractor</span>
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Realtime Notification Flash */}
+        {systemAlert && (
+          <div className="bg-slate-900 text-slate-100 text-xs px-6 py-2 flex items-center justify-between border-b border-slate-800 font-mono">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>{systemAlert}</span>
+            </div>
+            <button onClick={() => setSystemAlert(null)} className="text-slate-400 hover:text-white">
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {subcontractors.map((sub) => (
-              <div
-                key={sub.id}
-                className="glass-panel rounded-xl p-6 border border-slate-800 flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <h3 className="text-base font-bold text-white">
-                      {sub.companyName}
-                    </h3>
-                    <span className="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 font-mono text-[10px] border border-emerald-500/30 shrink-0">
-                      Active Partner
-                    </span>
-                  </div>
+        <div className="p-6 space-y-4">
+          {/* KPI Strip */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-3 bg-white border border-slate-200 rounded">
+              <div className="text-[11px] font-mono text-slate-500 uppercase">Allocated Capacity</div>
+              <div className="text-lg font-bold text-slate-900 mt-0.5">{formatKwp(totalKwp)}</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">{jobs.length} total projects</div>
+            </div>
 
-                  <div className="space-y-2 text-xs font-mono text-slate-400">
-                    <div>
-                      <span className="text-slate-500">Supervisor:</span>{" "}
-                      <span className="text-slate-200">{sub.contactPerson}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Phone (OTP):</span>{" "}
-                      <span className="text-slate-200">{sub.phoneNumber}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Region:</span>{" "}
-                      <span className="text-slate-200">{sub.stateRegion}</span>
-                    </div>
-                    <div className="pt-2">
-                      <span className="text-slate-500 block mb-1">Cryptographic Vendor Code:</span>
-                      <div className="flex items-center justify-between bg-black/60 p-2 rounded border border-amber-500/30 text-[#FFD23F] font-bold">
-                        <span>{sub.vendorCode}</span>
-                        <button
-                          onClick={() => handleRegenerateCode(sub.id)}
-                          title="Revoke and generate new code"
-                          className="text-slate-400 hover:text-white p-1"
-                        >
-                          <RotateCw className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <div className="p-3 bg-white border border-slate-200 rounded">
+              <div className="text-[11px] font-mono text-slate-500 uppercase">Active Dispatches</div>
+              <div className="text-lg font-bold text-slate-900 mt-0.5">{activeJobs.length}</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Assigned or in transit</div>
+            </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-400">
-                    Dispatches: <span className="text-white font-bold">{sub.assignedJobsCount || 0}</span>
-                  </span>
-                  <Link
-                    href={`/portal?subId=${sub.id}`}
-                    className="text-[#FFD23F] hover:underline flex items-center gap-1"
-                  >
-                    <span>View Field UI</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
-            ))}
+            <div className="p-3 bg-white border border-slate-200 rounded">
+              <div className="text-[11px] font-mono text-slate-500 uppercase">On-Site Execution</div>
+              <div className="text-lg font-bold text-slate-900 mt-0.5">{onSiteJobs.length}</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Crews currently mobilized</div>
+            </div>
+
+            <div className="p-3 bg-white border border-slate-200 rounded">
+              <div className="text-[11px] font-mono text-slate-500 uppercase">Commissioned Grid-Tied</div>
+              <div className="text-lg font-bold text-slate-900 mt-0.5">{completedJobs.length}</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">DISCOM reports verified</div>
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Modal: Dispatch New Job */}
-      {showJobModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="glass-panel max-w-xl w-full rounded-2xl p-6 sm:p-8 border border-amber-500/30 shadow-2xl relative my-8">
-            <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-[#FFD23F]" />
-              <span>Dispatch New Solar Installation Job</span>
-            </h2>
-            <p className="text-xs text-slate-400 mb-6">
-              Create a project work order and assign it to a verified subcontractor.
-            </p>
-
-            <form onSubmit={handleCreateJob} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                  Project Title
-                </label>
+          {/* Table Filters Bar */}
+          <div className="bg-white border border-slate-200 rounded p-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-1">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
                 <input
                   type="text"
-                  value={newJobTitle}
-                  onChange={(e) => setNewJobTitle(e.target.value)}
-                  placeholder="e.g. Manesar Auto Component Factory 600 kWp Rooftop"
-                  className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs"
-                  required
+                  placeholder="Filter by code, title, city, contractor..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {activeTab === "jobs" && (
+                <>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="assigned">Assigned</option>
+                      <option value="en_route">En Route</option>
+                      <option value="on_site">On Site</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="inspection_pending">Inspection Pending</option>
+                      <option value="completed">Completed</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+
+                  <select
+                    value={regionFilter}
+                    onChange={(e) => setRegionFilter(e.target.value)}
+                    className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  >
+                    <option value="ALL">All States</option>
+                    <option value="Haryana">Haryana</option>
+                    <option value="Rajasthan">Rajasthan</option>
+                    <option value="Uttar Pradesh">Uttar Pradesh</option>
+                  </select>
+                </>
+              )}
+            </div>
+
+            <div className="text-xs font-mono text-slate-500">
+              Showing {activeTab === "jobs" ? filteredJobs.length : filteredSubs.length} records
+            </div>
+          </div>
+
+          {/* High-Density Data Table */}
+          <div className="bg-white border border-slate-200 rounded overflow-hidden shadow-sm">
+            {activeTab === "jobs" ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-semibold text-[11px] uppercase tracking-wider">
+                      <th className="py-2.5 px-3">Job Identifier</th>
+                      <th className="py-2.5 px-3">Project Title &amp; Location</th>
+                      <th className="py-2.5 px-3">Contractor Assigned</th>
+                      <th className="py-2.5 px-3">System &amp; Capacity</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3">Schedule</th>
+                      <th className="py-2.5 px-3">Docs</th>
+                      <th className="py-2.5 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredJobs.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-slate-400 font-mono text-xs">
+                          No dispatch records matching current filter criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredJobs.map((job) => (
+                        <tr key={job.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2 px-3 font-mono font-semibold text-slate-900 whitespace-nowrap">
+                            <Link href={`/portal/job/${job.id}`} className="hover:underline text-slate-900">
+                              {job.jobCode}
+                            </Link>
+                          </td>
+                          <td className="py-2 px-3 max-w-xs">
+                            <div className="font-medium text-slate-900 truncate" title={job.title}>
+                              {job.title}
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate">
+                              {job.city}, {job.state} • {job.pincode}
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <div className="font-medium text-slate-800">
+                              {job.subcontractor?.companyName || "Unassigned"}
+                            </div>
+                            <div className="text-[11px] font-mono text-slate-500">
+                              {job.subcontractor?.phoneNumber || "—"}
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <div className="font-semibold text-slate-900">{formatKwp(job.capacityKwp)}</div>
+                            <div className="text-[11px] text-slate-500">{job.systemType}</div>
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            {getStatusBadge(job.status)}
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap font-mono text-[11px] text-slate-600">
+                            <div>{formatDateTime(job.scheduledStart).split(",")[0]}</div>
+                            <div className="text-slate-400">to {formatDateTime(job.scheduledEnd).split(",")[0]}</div>
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono bg-slate-100 text-slate-600 border border-slate-200">
+                              {job.documents?.length || 0}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1.5">
+                              {job.status === "completed" && (
+                                <Link
+                                  href={`/api/jobs/${job.id}/commissioning-report`}
+                                  target="_blank"
+                                  className="p-1 text-slate-500 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded bg-white transition-colors"
+                                  title="View DISCOM Report"
+                                >
+                                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                                </Link>
+                              )}
+                              <Link
+                                href={`/portal/job/${job.id}`}
+                                className="px-2 py-1 text-[11px] font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
+                              >
+                                View Job
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-semibold text-[11px] uppercase tracking-wider">
+                      <th className="py-2.5 px-3">Vendor Code</th>
+                      <th className="py-2.5 px-3">Contractor / Company Name</th>
+                      <th className="py-2.5 px-3">Contact Person &amp; Phone</th>
+                      <th className="py-2.5 px-3">Territory</th>
+                      <th className="py-2.5 px-3">License Number</th>
+                      <th className="py-2.5 px-3">Rating</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredSubs.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-slate-400 font-mono text-xs">
+                          No subcontractor records found.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredSubs.map((sub) => (
+                        <tr key={sub.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2 px-3 font-mono font-semibold text-slate-900 whitespace-nowrap">
+                            {sub.vendorCode}
+                          </td>
+                          <td className="py-2 px-3 font-medium text-slate-900">
+                            {sub.companyName}
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <div className="font-medium text-slate-800">{sub.contactPerson}</div>
+                            <div className="text-[11px] font-mono text-slate-500">{sub.phoneNumber}</div>
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap text-slate-600">
+                            {sub.stateRegion}
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap font-mono text-[11px] text-slate-600">
+                            {sub.licenseNumber || "—"}
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap font-mono text-slate-800 font-medium">
+                            {sub.rating.toFixed(2)} / 5.0
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            {sub.isActive ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Active
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                Inactive
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-right whitespace-nowrap">
+                            <button
+                              onClick={() => handleRegenerateCode(sub.id)}
+                              className="px-2 py-1 text-[11px] font-mono text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors cursor-pointer"
+                              title="Rotate Vendor Security Code"
+                            >
+                              Rotate Token
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Modal: Dispatch Job */}
+      {showJobModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-none flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white border border-slate-300 rounded shadow-xl p-5 text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">Dispatch Solar EPC Project</h2>
+              <button onClick={() => setShowJobModal(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateJob} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Project Title</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., 450 kWp Industrial Rooftop Solar"
+                  value={newJobTitle}
+                  onChange={(e) => setNewJobTitle(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Site Address</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., Plot 42, HSIIDC Industrial Complex"
+                  value={newJobSite}
+                  onChange={(e) => setNewJobSite(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                    Capacity (kWp)
-                  </label>
+                  <label className="block font-medium text-slate-700 mb-1">City</label>
                   <input
-                    type="number"
-                    value={newJobKwp}
-                    onChange={(e) => setNewJobKwp(e.target.value)}
-                    className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs font-mono"
+                    type="text"
                     required
+                    value={newJobCity}
+                    onChange={(e) => setNewJobCity(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                    System Architecture
-                  </label>
+                  <label className="block font-medium text-slate-700 mb-1">State</label>
+                  <input
+                    type="text"
+                    required
+                    value={newJobState}
+                    onChange={(e) => setNewJobState(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">PIN Code</label>
+                  <input
+                    type="text"
+                    required
+                    value={newJobPincode}
+                    onChange={(e) => setNewJobPincode(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Capacity (kWp)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={newJobKwp}
+                    onChange={(e) => setNewJobKwp(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">System Type</label>
                   <select
                     value={newJobSystemType}
                     onChange={(e) => setNewJobSystemType(e.target.value)}
-                    className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs"
+                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500 bg-white"
                   >
                     <option value="Rooftop Commercial Solar">Rooftop Commercial Solar</option>
-                    <option value="Utility Ground-Mount Solar">Utility Ground-Mount Solar</option>
-                    <option value="Industrial Microgrid with BESS">Industrial Microgrid with BESS</option>
-                    <option value="Solar Canopy / Carport">Solar Canopy / Carport</option>
+                    <option value="Ground Mount Utility Array">Ground Mount Utility Array</option>
+                    <option value="Solar Carport / EV Hybrid">Solar Carport / EV Hybrid</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                  Site Physical Address
-                </label>
-                <input
-                  type="text"
-                  value={newJobSite}
-                  onChange={(e) => setNewJobSite(e.target.value)}
-                  placeholder="Plot number, industrial area, landmark"
-                  className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                    City
-                  </label>
-                  <input
-                    type="text"
-                    value={newJobCity}
-                    onChange={(e) => setNewJobCity(e.target.value)}
-                    className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                    State
-                  </label>
-                  <input
-                    type="text"
-                    value={newJobState}
-                    onChange={(e) => setNewJobState(e.target.value)}
-                    className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                    PIN Code
-                  </label>
-                  <input
-                    type="text"
-                    value={newJobPincode}
-                    onChange={(e) => setNewJobPincode(e.target.value)}
-                    className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs font-mono"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                  Assign to Subcontractor Firm
-                </label>
+                <label className="block font-medium text-slate-700 mb-1">Assign Subcontractor</label>
                 <select
                   value={newJobSubId}
                   onChange={(e) => setNewJobSubId(e.target.value)}
-                  className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs"
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500 bg-white"
                   required
                 >
-                  {subcontractors.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.companyName} ({sub.contactPerson} - {sub.phoneNumber})
+                  {subcontractors.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.companyName} ({s.vendorCode} • {s.stateRegion})
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 mt-4">
                 <button
                   type="button"
                   onClick={() => setShowJobModal(false)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white"
+                  className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingJob}
-                  className="px-5 py-2 text-xs font-bold bg-[#FFD23F] hover:bg-[#ffe17d] text-black rounded-lg transition-colors"
+                  className="px-3 py-1.5 rounded bg-slate-900 text-white hover:bg-slate-800 font-medium transition-colors disabled:opacity-50"
                 >
-                  {submittingJob ? "Dispatching..." : "Dispatch Job"}
+                  {submittingJob ? "Dispatching..." : "Submit Dispatch"}
                 </button>
               </div>
             </form>
@@ -761,87 +844,90 @@ export default function AdminDashboardPage() {
 
       {/* Modal: Onboard Subcontractor */}
       {showSubModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="glass-panel max-w-md w-full rounded-2xl p-6 sm:p-8 border border-amber-500/30 shadow-2xl relative">
-            <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-              <HardHat className="w-5 h-5 text-[#FFD23F]" />
-              <span>Onboard Subcontractor Firm</span>
-            </h2>
-            <p className="text-xs text-slate-400 mb-6">
-              A cryptographically secure Vendor Code will be generated automatically.
-            </p>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-none flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-slate-300 rounded shadow-xl p-5 text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">Onboard Subcontractor</h2>
+              <button onClick={() => setShowSubModal(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-            <form onSubmit={handleOnboardSub} className="space-y-4">
+            <form onSubmit={handleCreateSub} className="space-y-3 text-xs">
               <div>
-                <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                  Company Name
-                </label>
+                <label className="block font-medium text-slate-700 mb-1">Company Registered Name</label>
                 <input
                   type="text"
+                  required
+                  placeholder="e.g., SuryaShakti EPC Infrastructure Ltd."
                   value={newSubName}
                   onChange={(e) => setNewSubName(e.target.value)}
-                  placeholder="e.g. Haryana Solar Powertech Solutions"
-                  className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs"
-                  required
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                  Field Supervisor / Contact Person
-                </label>
-                <input
-                  type="text"
-                  value={newSubPerson}
-                  onChange={(e) => setNewSubPerson(e.target.value)}
-                  placeholder="e.g. Vikramaditya Singh"
-                  className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Contact Lead</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g., Rajesh Verma"
+                    value={newSubPerson}
+                    onChange={(e) => setNewSubPerson(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Mobile Phone (E.164)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="+919812037550"
+                    value={newSubPhone}
+                    onChange={(e) => setNewSubPhone(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                  Registered Mobile Number (for OTP)
-                </label>
-                <input
-                  type="text"
-                  value={newSubPhone}
-                  onChange={(e) => setNewSubPhone(e.target.value)}
-                  placeholder="+919812037550"
-                  className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs font-mono"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Operating Region</label>
+                  <input
+                    type="text"
+                    required
+                    value={newSubRegion}
+                    onChange={(e) => setNewSubRegion(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Electrical License</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., DL-ELECT-2024-8842"
+                    value={newSubLicense}
+                    onChange={(e) => setNewSubLicense(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-slate-500"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-mono uppercase text-slate-300 mb-1">
-                  State / Hub Region
-                </label>
-                <input
-                  type="text"
-                  value={newSubRegion}
-                  onChange={(e) => setNewSubRegion(e.target.value)}
-                  placeholder="e.g. Haryana / Rajasthan"
-                  className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] rounded-lg px-3.5 py-2 text-white text-xs"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 mt-4">
                 <button
                   type="button"
                   onClick={() => setShowSubModal(false)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white"
+                  className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingSub}
-                  className="px-5 py-2 text-xs font-bold bg-[#FFD23F] hover:bg-[#ffe17d] text-black rounded-lg transition-colors"
+                  className="px-3 py-1.5 rounded bg-slate-900 text-white hover:bg-slate-800 font-medium transition-colors disabled:opacity-50"
                 >
-                  {submittingSub ? "Registering..." : "Onboard & Issue Code"}
+                  {submittingSub ? "Registering..." : "Onboard Subcontractor"}
                 </button>
               </div>
             </form>

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jobCreationSchema } from "@/lib/zod/schemas";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { db } from "@/lib/state/mock-db";
 import { generateJobCode } from "@/lib/utils";
 import { Job, JobDocument } from "@/types";
 
@@ -22,55 +21,55 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await query;
 
-    if (!error && data && data.length > 0) {
-      const jobs: Job[] = data.map((j) => ({
-        id: j.id,
-        jobCode: j.job_code,
-        title: j.title,
-        description: j.description || "",
-        siteAddress: j.site_address,
-        city: j.city,
-        state: j.state,
-        pincode: j.pincode,
-        gpsCoordinates: j.gps_lat && j.gps_lng ? { lat: j.gps_lat, lng: j.gps_lng } : undefined,
-        capacityKwp: Number(j.capacity_kwp),
-        systemType: j.system_type,
-        status: j.status,
-        subcontractorId: j.subcontractor_id || undefined,
-        createdBy: j.created_by || "admin-dispatcher-01",
-        scheduledStart: j.scheduled_start,
-        scheduledEnd: j.scheduled_end,
-        completedAt: j.completed_at || undefined,
-        notes: j.notes || "",
-        documents: (j.job_documents || []).map((d: Record<string, unknown>): JobDocument => ({
-          id: String(d.id),
-          jobId: String(d.job_id),
-          documentType: d.document_type as JobDocument["documentType"],
-          fileName: String(d.file_name),
-          fileSize: Number(d.file_size),
-          mimeType: String(d.mime_type),
-          storagePath: String(d.storage_path),
-          downloadUrl: d.download_url ? String(d.download_url) : undefined,
-          uploadedBy: String(d.uploaded_by),
-          uploaderRole: d.uploader_role as "ADMIN" | "SUBCONTRACTOR",
-          createdAt: String(d.created_at),
-          metadata: d.metadata as Record<string, unknown> | undefined,
-        })),
-        createdAt: j.created_at,
-        updatedAt: j.updated_at,
-      }));
-
-      return NextResponse.json({ success: true, jobs });
+    if (error) {
+      console.error("[Get Jobs Supabase Error]", error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // Graceful fallback to mock-db if database table not yet populated
-    const fallbackJobs = subcontractorId
-      ? db.getJobsBySubcontractor(subcontractorId)
-      : db.getJobs();
-    return NextResponse.json({ success: true, jobs: fallbackJobs });
+    const jobs: Job[] = (data || []).map((j) => ({
+      id: j.id,
+      jobCode: j.job_code,
+      title: j.title,
+      description: j.description,
+      siteAddress: j.site_address,
+      city: j.city,
+      state: j.state,
+      pincode: j.pincode,
+      gpsCoordinates: {
+        lat: j.gps_lat,
+        lng: j.gps_lng,
+      },
+      capacityKwp: Number(j.capacity_kwp),
+      systemType: j.system_type,
+      status: j.status,
+      subcontractorId: j.subcontractor_id,
+      createdBy: j.created_by,
+      scheduledStart: j.scheduled_start,
+      scheduledEnd: j.scheduled_end,
+      completedAt: j.completed_at,
+      notes: j.notes,
+      documents: (j.job_documents || []).map((d: Record<string, unknown>) => ({
+        id: String(d.id),
+        jobId: String(d.job_id),
+        documentType: d.document_type as JobDocument["documentType"],
+        fileName: String(d.file_name),
+        fileSize: Number(d.file_size),
+        mimeType: String(d.mime_type),
+        storagePath: String(d.storage_path),
+        downloadUrl: d.download_url as string | undefined,
+        uploadedBy: String(d.uploaded_by),
+        uploaderRole: d.uploader_role as "ADMIN" | "SUBCONTRACTOR",
+        createdAt: String(d.created_at),
+        metadata: d.metadata as Record<string, unknown> | undefined,
+      })),
+      createdAt: j.created_at,
+      updatedAt: j.updated_at,
+    }));
+
+    return NextResponse.json({ success: true, jobs });
   } catch (err: unknown) {
     console.error("[Get Jobs API Error]", err);
-    return NextResponse.json({ success: true, jobs: db.getJobs() });
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -114,17 +113,9 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    if (error) {
-      console.warn("[Supabase Insert Job Warning, using fallback]", error.message);
-      const fallbackJob = db.createJob({
-        ...jobFields,
-        description: jobFields.description || "",
-        notes: jobFields.notes || "",
-        status: "assigned",
-        createdBy: "admin-dispatcher-01",
-        gpsCoordinates: gpsLat && gpsLng ? { lat: gpsLat, lng: gpsLng } : undefined,
-      });
-      return NextResponse.json({ success: true, job: fallbackJob }, { status: 201 });
+    if (error || !data) {
+      console.error("[Supabase Insert Job Error]", error);
+      return NextResponse.json({ success: false, error: error?.message || "Failed to create job" }, { status: 500 });
     }
 
     // Insert audit log

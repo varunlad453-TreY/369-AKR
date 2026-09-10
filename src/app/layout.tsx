@@ -5,7 +5,7 @@ import { Footer } from "@/components/footer";
 import { PwaProvider } from "@/components/pwa-provider";
 
 export const viewport: Viewport = {
-  themeColor: "#0B0F19",
+  themeColor: "#0F172A",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -13,14 +13,21 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "369 AKR UNIVERSE | Subcontractor Operations Portal (SOP)",
-  description: "Enterprise Subcontractor Operations Portal for 369 AKR UNIVERSE - India's Premier Solar Energy Infrastructure Contractor.",
+  description:
+    "Enterprise Subcontractor Operations Portal for 369 AKR UNIVERSE - Utility-Scale Solar EPC & Infrastructure.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "AKR SOP",
   },
-  keywords: ["369 AKR UNIVERSE", "Solar EPC", "Subcontractor Operations Portal", "Field Dispatches", "India Solar"],
+  keywords: [
+    "369 AKR UNIVERSE",
+    "Solar EPC",
+    "Subcontractor Operations Portal",
+    "Field Dispatches",
+    "India Solar Infrastructure",
+  ],
   icons: {
     icon: "/images/logo/logo-icon.svg",
     apple: "/images/logo/logo-icon.svg",
@@ -33,15 +40,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen flex flex-col bg-[#06090e] text-slate-100 antialiased selection:bg-[#FFD23F] selection:text-black">
+    <html lang="en">
+      <body className="min-h-screen flex flex-col bg-slate-50 text-slate-900 antialiased selection:bg-slate-900 selection:text-white">
         <PwaProvider>
           <Navbar />
-          <div className="flex-1 flex flex-col pt-20">{children}</div>
+          <div className="flex-1 flex flex-col pt-14">{children}</div>
           <Footer />
         </PwaProvider>
       </body>
     </html>
   );
 }
-

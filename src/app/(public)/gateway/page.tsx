@@ -2,16 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import Link from "next/link";
 import {
   KeyRound,
   ShieldCheck,
   AlertTriangle,
   ArrowRight,
   Lock,
-  Radio,
-  CheckCircle2,
-  Sparkles,
+  Building2,
+  RefreshCw,
 } from "lucide-react";
 
 export default function GatewayPage() {
@@ -45,7 +44,6 @@ export default function GatewayPage() {
         return;
       }
 
-      // Navigate to step 2 verification
       const query = new URLSearchParams({
         code: data.session.vendorCode,
         phone: data.session.maskedPhone,
@@ -55,7 +53,7 @@ export default function GatewayPage() {
 
       router.push(`/gateway/verify?${query.toString()}`);
     } catch {
-      setError("Network or server connection failed. Please retry.");
+      setError("Network connection failed. Please retry.");
       setLoading(false);
     }
   };
@@ -66,44 +64,31 @@ export default function GatewayPage() {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 bg-solar-grid">
-      <div className="w-full max-w-md">
-        {/* Security Header Card */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-[#FFD23F] mb-4 shadow-lg shadow-amber-500/10">
-            <KeyRound className="w-8 h-8" />
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Subcontractor Gateway
-          </h1>
-          <p className="mt-2 text-xs sm:text-sm text-slate-400">
-            Zero-Trust Operational Access for 369 AKR UNIVERSE Field Partners
-          </p>
-        </div>
-
-        {/* Main Gateway Card */}
-        <div className="glass-panel rounded-2xl p-6 sm:p-8 border border-amber-500/30 shadow-2xl relative overflow-hidden">
-          {/* Top Edge Indicator */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#FFD23F] to-transparent" />
-
-          <div className="flex items-center justify-between text-xs font-mono text-slate-400 mb-6 pb-4 border-b border-slate-800">
-            <span className="flex items-center gap-1.5 text-amber-400">
-              <ShieldCheck className="w-4 h-4" />
-              <span>STEP 1 OF 2: VENDOR CODE</span>
-            </span>
-            <span className="flex items-center gap-1 text-emerald-400">
-              <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>ENCRYPTED</span>
-            </span>
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4 py-12 bg-slate-50 text-slate-900">
+      <div className="w-full max-w-md space-y-6">
+        {/* Gateway Card */}
+        <div className="bg-white border border-slate-200 rounded p-6 sm:p-8 shadow-xs">
+          <div className="flex items-center gap-2.5 pb-4 border-b border-slate-200 mb-5">
+            <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-700">
+              <KeyRound className="w-4 h-4" />
+            </div>
+            <div>
+              <h1 className="text-sm font-mono font-bold uppercase text-slate-900">
+                Subcontractor Auth Gateway
+              </h1>
+              <p className="text-[11px] text-slate-500 font-sans">
+                369 AKR UNIVERSE Zero-Trust Access Barrier
+              </p>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label
                 htmlFor="vendorCode"
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2 font-mono"
+                className="block text-[11px] font-mono font-semibold uppercase text-slate-700 mb-1"
               >
-                Project / Vendor Access Code
+                Assigned Vendor Access Code
               </label>
               <div className="relative">
                 <input
@@ -112,20 +97,20 @@ export default function GatewayPage() {
                   value={vendorCode}
                   onChange={(e) => setVendorCode(e.target.value.toUpperCase())}
                   placeholder="e.g. AKR-JOB-7K9M-SEC"
-                  className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] focus:ring-1 focus:ring-[#FFD23F] rounded-lg px-4 py-3.5 text-white font-mono text-sm tracking-wider uppercase placeholder:text-slate-600 transition-colors"
+                  className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-slate-900 font-mono text-xs tracking-wider uppercase placeholder:text-slate-400 focus:outline-none focus:border-slate-900 transition-colors"
                   autoFocus
                   required
                 />
-                <Lock className="w-4 h-4 text-slate-500 absolute right-4 top-4" />
+                <Lock className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-2.5" />
               </div>
-              <p className="mt-2 text-[11px] text-slate-400">
-                Provided by 369 AKR Central Dispatch in your operational mandate or agreement.
+              <p className="mt-1 text-[11px] text-slate-500 font-sans">
+                Enter the 16-character cryptographic code provided in your work order dispatch.
               </p>
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-950/50 border border-red-500/50 text-red-300 text-xs flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="p-2.5 rounded bg-red-50 border border-red-200 text-red-700 text-xs font-mono flex items-start gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
@@ -133,39 +118,40 @@ export default function GatewayPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-[#FFD23F] hover:bg-[#ffe17d] disabled:opacity-50 text-black font-bold text-sm py-3.5 px-6 rounded-lg transition-all duration-200 shadow-lg shadow-amber-500/20 active:scale-98"
+              className="w-full flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-mono text-xs font-semibold py-2.5 px-4 rounded transition-colors"
             >
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                  <span>Verifying Code &amp; Dispatching SMS...</span>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Verifying &amp; Sending SMS...</span>
                 </>
               ) : (
                 <>
-                  <span>Request SMS One-Time Password</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span>Request Dynamic SMS OTP</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Quick Fill Test Accounts for Evaluators */}
-          <div className="mt-8 pt-6 border-t border-slate-800/80">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono mb-3">
-              <Sparkles className="w-3.5 h-3.5 text-[#FFD23F]" />
-              <span>One-Click Test Vendor Codes:</span>
+          {/* Quick-Fill Demo Codes */}
+          <div className="mt-6 pt-4 border-t border-slate-100 font-mono text-xs">
+            <div className="text-[11px] uppercase text-slate-500 mb-2 font-semibold">
+              Evaluation Demo Accounts:
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <button
                 type="button"
                 onClick={() => handleQuickFill("AKR-JOB-7K9M-SEC")}
-                className="w-full text-left p-2.5 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-amber-500/40 transition-colors flex items-center justify-between text-xs"
+                className="w-full text-left p-2 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center justify-between"
               >
                 <div>
-                  <div className="font-mono text-[#FFD23F] font-bold">AKR-JOB-7K9M-SEC</div>
-                  <div className="text-slate-400 text-[11px]">SuryaShakti EPC (+91 98120 37550)</div>
+                  <span className="font-bold text-slate-900">AKR-JOB-7K9M-SEC</span>
+                  <span className="text-[10px] text-slate-500 block font-sans">
+                    SuryaShakti EPC (+91 98120 37550)
+                  </span>
                 </div>
-                <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30">
+                <span className="text-[10px] text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">
                   Rohtak 450 kWp
                 </span>
               </button>
@@ -173,13 +159,15 @@ export default function GatewayPage() {
               <button
                 type="button"
                 onClick={() => handleQuickFill("AKR-JOB-4X2P-SEC")}
-                className="w-full text-left p-2.5 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-amber-500/40 transition-colors flex items-center justify-between text-xs"
+                className="w-full text-left p-2 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center justify-between"
               >
                 <div>
-                  <div className="font-mono text-[#FFD23F] font-bold">AKR-JOB-4X2P-SEC</div>
-                  <div className="text-slate-400 text-[11px]">Thar High-Voltage (+91 90509 37550)</div>
+                  <span className="font-bold text-slate-900">AKR-JOB-4X2P-SEC</span>
+                  <span className="text-[10px] text-slate-500 block font-sans">
+                    Thar High-Voltage (+91 90509 37550)
+                  </span>
                 </div>
-                <span className="text-[10px] text-cyan-400 font-mono bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-500/30">
+                <span className="text-[10px] text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">
                   Jaipur 1.2 MWp
                 </span>
               </button>
@@ -188,9 +176,9 @@ export default function GatewayPage() {
         </div>
 
         {/* Security Compliance Note */}
-        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-500 font-mono text-center">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          <span>Protected by Rate-Limiting &amp; DLT SMS Audit Tracking</span>
+        <div className="text-center font-mono text-[11px] text-slate-500 flex items-center justify-center gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span>PostgreSQL Rate-Limiting &amp; DLT SMS Audit Trail Active</span>
         </div>
       </div>
     </div>

@@ -10,8 +10,7 @@ import {
   ArrowRight,
   ArrowLeft,
   RotateCcw,
-  CheckCircle2,
-  Lock,
+  RefreshCw,
 } from "lucide-react";
 
 function VerifyOtpContent() {
@@ -55,12 +54,11 @@ function VerifyOtpContent() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setError(data.error || "Authentication failed. Incorrect OTP.");
+        setError(data.error || "Authentication failed. Invalid or expired OTP.");
         setLoading(false);
         return;
       }
 
-      // Successful verification! Redirect to Subcontractor Field Portal
       router.push(`/portal?subId=${data.subcontractor.id}`);
     } catch {
       setError("Failed to verify code. Please check your network connection.");
@@ -94,70 +92,57 @@ function VerifyOtpContent() {
   };
 
   const handleUseDemoOtp = () => {
-    if (demoOtp) {
-      setOtp(demoOtp);
-      setError(null);
-    } else {
-      setOtp("369369");
-      setError(null);
-    }
+    setOtp(demoOtp || "369369");
+    setError(null);
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 bg-solar-grid">
-      <div className="w-full max-w-md">
-        {/* Top Navigation */}
-        <div className="mb-6">
-          <Link
-            href="/gateway"
-            className="inline-flex items-center gap-2 text-xs font-mono text-slate-400 hover:text-[#FFD23F] transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Change Vendor Code</span>
-          </Link>
-        </div>
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4 py-12 bg-slate-50 text-slate-900">
+      <div className="w-full max-w-md space-y-6">
+        <Link
+          href="/gateway"
+          className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-500 hover:text-slate-900 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Vendor Code Entry</span>
+        </Link>
 
-        {/* Card */}
-        <div className="glass-panel rounded-2xl p-6 sm:p-8 border border-amber-500/30 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#FFD23F] via-amber-400 to-yellow-500" />
-
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-[#FFD23F] mb-3">
-              <Smartphone className="w-7 h-7" />
+        {/* Verification Card */}
+        <div className="bg-white border border-slate-200 rounded p-6 sm:p-8 shadow-xs">
+          <div className="flex items-center gap-2.5 pb-4 border-b border-slate-200 mb-5">
+            <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-700">
+              <Smartphone className="w-4 h-4" />
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">
-              Enter SMS Verification Code
-            </h1>
-            <p className="mt-2 text-xs sm:text-sm text-slate-300">
-              Dispatched to your registered mobile number:{" "}
-              <span className="text-[#FFD23F] font-mono font-semibold block sm:inline">
-                {maskedPhone}
-              </span>
-            </p>
+            <div>
+              <h1 className="text-sm font-mono font-bold uppercase text-slate-900">
+                SMS One-Time Password Verification
+              </h1>
+              <p className="text-[11px] text-slate-500 font-sans">
+                Dispatched to: <strong className="text-slate-800 font-mono">{maskedPhone}</strong>
+              </p>
+            </div>
           </div>
 
-          {/* Test Mode OTP Banner */}
-          <div className="mb-6 p-3 rounded-lg bg-amber-950/40 border border-amber-500/40 text-xs flex items-center justify-between">
+          {/* Test Simulation Banner */}
+          <div className="mb-4 p-2.5 rounded bg-slate-50 border border-slate-200 text-xs font-mono flex items-center justify-between">
             <div>
-              <span className="text-amber-400 font-bold font-mono">DEMO SIMULATION OTP:</span>{" "}
-              <code className="text-white font-mono bg-black/60 px-2 py-0.5 rounded border border-amber-500/30">
-                {demoOtp || "369369"}
-              </code>
+              <span className="text-slate-500 text-[10px] block uppercase">Simulation OTP:</span>
+              <code className="font-bold text-slate-900">{demoOtp || "369369"}</code>
             </div>
             <button
               type="button"
               onClick={handleUseDemoOtp}
-              className="px-2.5 py-1 text-[11px] font-bold bg-[#FFD23F] hover:bg-amber-400 text-black rounded transition-colors"
+              className="px-2 py-1 text-[11px] font-semibold bg-slate-200 hover:bg-slate-300 text-slate-800 rounded transition-colors"
             >
               Auto-Fill
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label
                 htmlFor="otpInput"
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2 font-mono"
+                className="block text-[11px] font-mono font-semibold uppercase text-slate-700 mb-1"
               >
                 6-Digit Dynamic Passcode
               </label>
@@ -168,15 +153,15 @@ function VerifyOtpContent() {
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                 placeholder="••••••"
-                className="w-full bg-[#0B0F19] border border-slate-700 focus:border-[#FFD23F] focus:ring-1 focus:ring-[#FFD23F] rounded-lg px-4 py-3.5 text-center text-white font-mono text-2xl tracking-[0.5em] placeholder:text-slate-700 transition-colors"
+                className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-center text-slate-900 font-mono text-xl tracking-[0.4em] placeholder:text-slate-300 focus:outline-none focus:border-slate-900 transition-colors"
                 autoFocus
                 required
               />
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-950/50 border border-red-500/50 text-red-300 text-xs flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="p-2.5 rounded bg-red-50 border border-red-200 text-red-700 text-xs font-mono flex items-start gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
@@ -184,35 +169,35 @@ function VerifyOtpContent() {
             <button
               type="submit"
               disabled={loading || otp.length !== 6}
-              className="w-full flex items-center justify-center gap-2 bg-[#FFD23F] hover:bg-[#ffe17d] disabled:opacity-50 text-black font-bold text-sm py-3.5 px-6 rounded-lg transition-all duration-200 shadow-lg shadow-amber-500/20 active:scale-98"
+              className="w-full flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-mono text-xs font-semibold py-2.5 px-4 rounded transition-colors"
             >
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                  <span>Verifying Passcode &amp; Issuing Session...</span>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Verifying Passcode...</span>
                 </>
               ) : (
                 <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Authenticate &amp; Open Portal</span>
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Verify Passcode &amp; Open Portal</span>
                 </>
               )}
             </button>
           </form>
 
-          {/* Resend Code Section */}
-          <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-            <span>Didn&#39;t receive the SMS?</span>
+          {/* Resend OTP */}
+          <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-mono text-slate-500">
+            <span>Didn&#39;t receive OTP?</span>
             {countdown > 0 ? (
-              <span className="font-mono text-amber-400">Resend in {countdown}s</span>
+              <span className="text-slate-400">Resend in {countdown}s</span>
             ) : (
               <button
                 type="button"
                 onClick={handleResend}
                 disabled={resending}
-                className="text-[#FFD23F] hover:underline flex items-center gap-1 font-mono font-semibold"
+                className="text-slate-900 hover:underline flex items-center gap-1 font-semibold"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
                 <span>Resend OTP</span>
               </button>
             )}
@@ -227,7 +212,7 @@ export default function VerifyOtpPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[85vh] flex items-center justify-center text-amber-400 font-mono text-sm">
+        <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center bg-slate-50 text-slate-600 font-mono text-xs">
           Loading Security Gateway...
         </div>
       }

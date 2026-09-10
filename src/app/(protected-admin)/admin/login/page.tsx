@@ -17,7 +17,7 @@ import {
   Building2,
   RefreshCw,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+
 
 function AdminLoginForm() {
   const router = useRouter();
@@ -68,18 +68,8 @@ function AdminLoginForm() {
         return;
       }
 
-      // 2. Also initialize client-side Supabase auth if permitted (non-blocking)
-      try {
-        const supabase = createClient();
-        await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password,
-        });
-      } catch {
-        // Non-blocking
-      }
-
-      // 3. Successful verification -> Navigate to admin control plane
+      // Successful verification -> Navigate to admin control plane
+      // (session is managed via akr_admin_session cookie set by the API)
       window.location.href = redirectedFrom;
     } catch (err: unknown) {
       console.error("[Admin Login Error]", err);

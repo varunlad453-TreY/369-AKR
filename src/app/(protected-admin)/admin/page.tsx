@@ -21,15 +21,25 @@ import {
   MapPin,
   ChevronRight,
   Filter,
+  Radio,
+  FileText,
+  Activity,
+  Download,
 } from "lucide-react";
 import { Job, Subcontractor, AuditLog } from "@/types";
 import { formatKwp, formatDateTime } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<"jobs" | "subcontractors">("jobs");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Air Traffic Control: Realtime Socket State
+  const [realtimeStatus, setRealtimeStatus] = useState<string>("CONNECTED");
+  const [lastUpdatedJobId, setLastUpdatedJobId] = useState<string | null>(null);
+  const [realtimeNotice, setRealtimeNotice] = useState<string | null>(null);
 
   // New Job Modal State
   const [showJobModal, setShowJobModal] = useState(false);
@@ -57,21 +67,44 @@ export default function AdminDashboardPage() {
 
   const fetchData = async () => {
     try {
-      const [jobsRes, subRes] = await Promise.all([
+      const supabase = createClient();
+
+      // Direct Supabase query to public.subcontractors table + API jobs
+      const [jobsRes, { data: subData, error: subError }] = await Promise.all([
         fetch("/api/jobs"),
-        fetch("/api/subcontractors"),
+        supabase
+          .from("subcontractors")
+          .select("*")
+          .order("created_at", { ascending: false }),
       ]);
 
-      const [jobsData, subData] = await Promise.all([
-        jobsRes.json(),
-        subRes.json(),
-      ]);
-
+      const jobsData = await jobsRes.json();
       if (jobsData.success) setJobs(jobsData.jobs);
-      if (subData.success) {
-        setSubcontractors(subData.subcontractors);
-        if (subData.subcontractors.length > 0 && !newJobSubId) {
-          setNewJobSubId(subData.subcontractors[0].id);
+
+      if (subError) {
+        console.error("[Supabase Subcontractors Fetch Error]", subError);
+      } else if (subData) {
+        // Map database snake_case columns to Subcontractor type
+        const mappedSubs: Subcontractor[] = subData.map((s) => ({
+          id: s.id,
+          authUserId: s.auth_user_id,
+          companyName: s.company_name,
+          phoneNumber: s.phone_number,
+          vendorCode: s.vendor_code,
+          contactPerson: s.contact_person,
+          licenseNumber: s.license_number,
+          stateRegion: s.state_region,
+          isActive: s.is_active,
+          rating: Number(s.rating) || 5.0,
+          assignedJobsCount: s.assigned_jobs_count || 0,
+          completedJobsCount: s.completed_jobs_count || 0,
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+        }));
+
+        setSubcontractors(mappedSubs);
+        if (mappedSubs.length > 0 && !newJobSubId) {
+          setNewJobSubId(mappedSubs[0].id);
         }
       }
     } catch (err) {
@@ -81,9 +114,98 @@ export default function AdminDashboardPage() {
     }
   };
 
+
   useEffect(() => {
     fetchData();
+
+    // 1. Supabase PostgreSQL CDC Realtime Channel
+    const supabase = createClient();
+    const channel = supabase
+      .channel("admin-jobs-air-traffic")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "jobs",
+        },
+        (payload) => {
+          console.log("[Supabase Realtime CDC] UPDATE on jobs:", payload);
+          const updated = payload.new as Job;
+          setJobs((prev) =>
+            prev.map((j) => (j.id === updated.id ? { ...j, ...updated } : j))
+          );
+          setLastUpdatedJobId(updated.id);
+          setRealtimeNotice(
+            `⚡ Realtime CDC Socket: ${updated.jobCode || updated.id} updated to "${updated.status.replace("_", " ").toUpperCase()}"`
+          );
+          setTimeout(() => {
+            setLastUpdatedJobId(null);
+            setRealtimeNotice(null);
+          }, 5000);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "jobs",
+        },
+        (payload) => {
+          console.log("[Supabase Realtime CDC] INSERT on jobs:", payload);
+          const newJob = payload.new as Job;
+          setJobs((prev) => [newJob, ...prev]);
+          setLastUpdatedJobId(newJob.id);
+          setRealtimeNotice(
+            `⚡ Realtime CDC Socket: New job dispatched (${newJob.jobCode || newJob.id})`
+          );
+          setTimeout(() => {
+            setLastUpdatedJobId(null);
+            setRealtimeNotice(null);
+          }, 5000);
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setRealtimeStatus("CONNECTED");
+        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+          setRealtimeStatus("RECONNECTING");
+        }
+      });
+
+    // 2. BroadcastChannel: High-frequency cross-tab Air Traffic Control
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      try {
+        bc = new BroadcastChannel("akr-air-traffic");
+        bc.onmessage = (event) => {
+          if (event.data && event.data.type === "JOB_STATUS_UPDATED") {
+            const { jobId, newStatus, jobCode } = event.data;
+            setJobs((prev) =>
+              prev.map((j) => (j.id === jobId ? { ...j, status: newStatus } : j))
+            );
+            setLastUpdatedJobId(jobId);
+            setRealtimeNotice(
+              `⚡ Air Traffic Control: ${jobCode || jobId} marked "${newStatus.replace("_", " ").toUpperCase()}" without page reload`
+            );
+            setTimeout(() => {
+              setLastUpdatedJobId(null);
+              setRealtimeNotice(null);
+            }, 5000);
+          }
+        };
+      } catch (e) {
+        console.warn("BroadcastChannel initialization error:", e);
+      }
+    }
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (bc) bc.close();
+    };
   }, []);
+
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -227,7 +349,17 @@ export default function AdminDashboardPage() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Realtime Socket Air Traffic Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 font-mono text-xs shadow-lg">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <Radio className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="font-bold">AIR TRAFFIC CDC: {realtimeStatus}</span>
+          </div>
+
           <Link
             href="/admin/audit-logs"
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-mono font-medium rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-colors"
@@ -245,6 +377,15 @@ export default function AdminDashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Realtime Event Flash Banner */}
+      {realtimeNotice && (
+        <div className="mb-6 p-4 rounded-xl bg-emerald-950/90 border border-emerald-500 text-emerald-200 font-mono text-xs flex items-center gap-3 shadow-2xl animate-in slide-in-from-top-3">
+          <Activity className="w-5 h-5 text-emerald-400 shrink-0 animate-pulse" />
+          <div className="flex-1 font-bold">{realtimeNotice}</div>
+        </div>
+      )}
+
 
       {/* KPI Metrics Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -314,16 +455,33 @@ export default function AdminDashboardPage() {
           {jobs.map((job) => (
             <div
               key={job.id}
-              className="glass-panel rounded-xl p-5 border border-slate-800 hover:border-amber-500/30 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+              className={`glass-panel rounded-xl p-5 border transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+                lastUpdatedJobId === job.id
+                  ? "ring-2 ring-emerald-400 bg-emerald-950/40 border-emerald-500 shadow-xl shadow-emerald-500/20"
+                  : "border-slate-800 hover:border-amber-500/30"
+              }`}
             >
               <div className="space-y-1.5 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="px-2 py-0.5 rounded bg-black text-[#FFD23F] font-mono text-xs font-bold border border-amber-500/30">
                     {job.jobCode}
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[11px] font-mono uppercase bg-slate-800 text-slate-300">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono uppercase ${
+                      job.status === "completed"
+                        ? "bg-emerald-950/70 text-emerald-300 border border-emerald-500/30"
+                        : job.status === "in_progress"
+                        ? "bg-amber-950/70 text-[#FFD23F] border border-amber-500/30"
+                        : "bg-slate-800 text-slate-300"
+                    }`}
+                  >
                     {job.status.replace("_", " ")}
                   </span>
+                  {lastUpdatedJobId === job.id && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-emerald-400 text-black font-extrabold animate-pulse">
+                      ⚡ LIVE CDC SYNC
+                    </span>
+                  )}
                   <span className="text-xs text-slate-400 font-mono">
                     {job.systemType}
                   </span>
@@ -349,7 +507,20 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                {job.status === "completed" && (
+                  <a
+                    href={`/api/jobs/${job.id}/commissioning-report`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-xs font-mono text-emerald-300 flex items-center gap-1.5 transition-colors shadow-sm"
+                    title="View official State Electricity Board Compliance Certificate"
+                  >
+                    <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>DISCOM Certificate</span>
+                  </a>
+                )}
+
                 <Link
                   href={`/portal/job/${job.id}`}
                   className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-mono text-slate-200 border border-slate-700 flex items-center gap-1"

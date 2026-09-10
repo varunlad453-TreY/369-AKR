@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   MapPin,
@@ -21,9 +22,21 @@ import {
   ExternalLink,
   ShieldCheck,
   FileCheck,
+  Wifi,
+  WifiOff,
+  Database,
+  RefreshCw,
+  ImageIcon,
 } from "lucide-react";
 import { Job, JobDocument, JobStatus } from "@/types";
 import { formatKwp, formatDateTime } from "@/lib/utils";
+import {
+  enqueueOfflineProof,
+  getQueuedProofsForJob,
+  subscribeToQueue,
+  QueuedUploadItem,
+  flushOfflineProofQueue,
+} from "@/lib/offline/sync-manager";
 
 interface PageProps {
   params: Promise<{ jobId: string }>;
@@ -41,6 +54,12 @@ export default function JobDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
 
+  // Network & Offline Vault State
+  const [isOnline, setIsOnline] = useState(true);
+  const [vaultQueuedProofs, setVaultQueuedProofs] = useState<QueuedUploadItem[]>([]);
+  const [syncingVault, setSyncingVault] = useState(false);
+  const [offlineNotice, setOfflineNotice] = useState<string | null>(null);
+
   // Proof-of-Work Upload State
   const [uploading, setUploading] = useState(false);
   const [docType, setDocType] = useState<JobDocument["documentType"]>("proof_of_work");
@@ -53,6 +72,10 @@ export default function JobDetailPage({ params }: PageProps) {
   const [gpsStatus, setGpsStatus] = useState<string>("Click to capture live GPS coordinates");
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState<JobDocument[]>([]);
+
+  // Camera Capture State
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFileName, setPhotoFileName] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadJob() {
@@ -74,7 +97,50 @@ export default function JobDetailPage({ params }: PageProps) {
     }
 
     loadJob();
+
+    // Track online/offline status
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Subscribe to IndexedDB queue for this job
+    const unsubscribe = subscribeToQueue((items) => {
+      setVaultQueuedProofs(items.filter((item) => item.jobId === jobId));
+    });
+
+    // Listen for background sync completions
+    const handleProofSynced = (e: Event) => {
+      const customEvent = e as CustomEvent<{ jobId: string; document: JobDocument }>;
+      if (customEvent.detail && customEvent.detail.jobId === jobId) {
+        setUploadedDocs((prev) => [customEvent.detail.document, ...prev]);
+        setOfflineNotice("Background sync committed proof-of-work to Supabase Storage.");
+        setTimeout(() => setOfflineNotice(null), 5000);
+      }
+    };
+    window.addEventListener("akr-proof-synced", handleProofSynced);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("akr-proof-synced", handleProofSynced);
+      unsubscribe();
+    };
   }, [jobId]);
+
+  // Handle Photo Selection / Camera Capture
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPhotoFileName(file.name);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Capture Geolocation
   const captureGPS = () => {
@@ -91,11 +157,12 @@ export default function JobDetailPage({ params }: PageProps) {
           longitude: Number(pos.coords.longitude.toFixed(6)),
           accuracy: Number(pos.coords.accuracy.toFixed(1)),
         });
-        setGpsStatus(`GPS Acquired: ${pos.coords.latitude.toFixed(4)}°N, ${pos.coords.longitude.toFixed(4)}°E (±${pos.coords.accuracy.toFixed(0)}m)`);
+        setGpsStatus(
+          `GPS Fix: ${pos.coords.latitude.toFixed(4)}°N, ${pos.coords.longitude.toFixed(4)}°E (±${pos.coords.accuracy.toFixed(0)}m)`
+        );
       },
       (err) => {
         console.warn("GPS Permission Denied or Timeout", err);
-        // Fallback to project coordinates with simulation flag
         if (job?.gpsCoordinates) {
           setGpsLocation({
             latitude: job.gpsCoordinates.lat,
@@ -129,6 +196,24 @@ export default function JobDetailPage({ params }: PageProps) {
       const data = await res.json();
       if (res.ok && data.success) {
         setJob((prev) => (prev ? { ...prev, status: newStatus } : null));
+
+        // Air Traffic Control: Broadcast real-time change to Admin Plane
+        if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+          try {
+            const bc = new BroadcastChannel("akr-air-traffic");
+            bc.postMessage({
+              type: "JOB_STATUS_UPDATED",
+              jobId: job.id,
+              newStatus,
+              jobCode: job.jobCode,
+              title: job.title,
+              subcontractorId: subId,
+            });
+            bc.close();
+          } catch {
+            // Channel fallback
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to update status", err);
@@ -137,7 +222,7 @@ export default function JobDetailPage({ params }: PageProps) {
     }
   };
 
-  // Upload Proof-of-Work
+  // Resilient Proof-of-Work Upload with IndexedDB Fallback
   const handleUploadProof = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!job) return;
@@ -150,22 +235,64 @@ export default function JobDetailPage({ params }: PageProps) {
     setUploading(true);
     setUploadSuccess(false);
 
+    const generatedFileName =
+      photoFileName || `PROOF_${docType.toUpperCase()}_${Date.now().toString(36)}.jpg`;
+    const imagePayload =
+      photoPreview ||
+      "https://images.unsplash.com/photo-1509391365360-2e959784a276?w=1200&q=80";
+
+    // CASE 1: Device is OFFLINE -> Intercept into IndexedDB Vault immediately
+    if (!navigator.onLine) {
+      try {
+        await enqueueOfflineProof({
+          jobId: job.id,
+          documentType: docType,
+          fileName: generatedFileName,
+          fileSize: 2450000,
+          mimeType: "image/jpeg",
+          base64Data: imagePayload,
+          previewUrl: imagePayload,
+          latitude: gpsLocation.latitude,
+          longitude: gpsLocation.longitude,
+          accuracy: gpsLocation.accuracy,
+          notes,
+          uploadedBy: subId,
+          uploaderRole: "SUBCONTRACTOR",
+        });
+
+        setUploadSuccess(true);
+        setNotes("");
+        setPhotoPreview(null);
+        setPhotoFileName(null);
+        setOfflineNotice(
+          "Rooftop Signal Offline: Proof secured in IndexedDB Field Vault. Will auto-sync when network returns."
+        );
+        setTimeout(() => setOfflineNotice(null), 6000);
+      } catch (err) {
+        console.error("IndexedDB enqueue failed", err);
+        alert("Local storage error while caching offline proof.");
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
+    // CASE 2: Device is ONLINE -> Attempt direct upload, fallback to IndexedDB on network drop
     try {
-      const fileName = `PROOF_${docType.toUpperCase()}_${Date.now().toString(36)}.jpg`;
       const res = await fetch(`/api/jobs/${job.id}/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jobId: job.id,
           documentType: docType,
-          fileName,
+          fileName: generatedFileName,
           fileSize: 2450000,
           mimeType: "image/jpeg",
           latitude: gpsLocation.latitude,
           longitude: gpsLocation.longitude,
           accuracy: gpsLocation.accuracy,
           notes,
-          previewUrl: "https://images.unsplash.com/photo-1509391365360-2e959784a276?w=1200&q=80",
+          previewUrl: imagePayload,
           uploadedBy: subId,
           uploaderRole: "SUBCONTRACTOR",
         }),
@@ -176,15 +303,64 @@ export default function JobDetailPage({ params }: PageProps) {
         setUploadedDocs((prev) => [data.document, ...prev]);
         setUploadSuccess(true);
         setNotes("");
-        // If proof uploaded and was on_site, advance to in_progress
+        setPhotoPreview(null);
+        setPhotoFileName(null);
         if (job.status === "on_site") {
           handleUpdateStatus("in_progress");
         }
+      } else {
+        throw new Error(data.error || "Storage upload rejected");
       }
     } catch (err) {
-      console.error("Upload error", err);
+      console.warn("Network interrupted during transmission. Diverting to IndexedDB Vault:", err);
+      // Graceful fallback to IndexedDB
+      await enqueueOfflineProof({
+        jobId: job.id,
+        documentType: docType,
+        fileName: generatedFileName,
+        fileSize: 2450000,
+        mimeType: "image/jpeg",
+        base64Data: imagePayload,
+        previewUrl: imagePayload,
+        latitude: gpsLocation.latitude,
+        longitude: gpsLocation.longitude,
+        accuracy: gpsLocation.accuracy,
+        notes,
+        uploadedBy: subId,
+        uploaderRole: "SUBCONTRACTOR",
+      });
+
+      setUploadSuccess(true);
+      setNotes("");
+      setPhotoPreview(null);
+      setPhotoFileName(null);
+      setOfflineNotice(
+        "Network signal dropped midway: Proof safely cached in local Offline Vault. Ready for sync."
+      );
+      setTimeout(() => setOfflineNotice(null), 6000);
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Manual Trigger to Flush Queue
+  const handleManualVaultSync = async () => {
+    if (!navigator.onLine) {
+      alert("Device is offline. Cannot flush queue until network signal is restored.");
+      return;
+    }
+
+    setSyncingVault(true);
+    try {
+      const res = await flushOfflineProofQueue();
+      if (res.successCount > 0) {
+        setOfflineNotice(`Synchronized ${res.successCount} item(s) to Supabase Storage!`);
+        setTimeout(() => setOfflineNotice(null), 4000);
+      }
+    } catch {
+      alert("Error flushing queue to Supabase.");
+    } finally {
+      setSyncingVault(false);
     }
   };
 
@@ -208,8 +384,8 @@ export default function JobDetailPage({ params }: PageProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Top Breadcrumb Nav */}
-      <div className="mb-6 flex items-center justify-between">
+      {/* Top Breadcrumb Nav & Network Indicator */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <Link
           href={`/portal?subId=${subId}`}
           className="inline-flex items-center gap-2 text-xs font-mono text-slate-400 hover:text-[#FFD23F] transition-colors"
@@ -217,10 +393,54 @@ export default function JobDetailPage({ params }: PageProps) {
           <ArrowLeft className="w-4 h-4" />
           <span>Back to All Dispatches</span>
         </Link>
-        <span className="text-xs font-mono text-emerald-400 bg-emerald-950/40 px-3 py-1 rounded-full border border-emerald-500/30">
-          ● Field Channel Encrypted
-        </span>
+
+        <div className="flex items-center gap-3 font-mono text-xs">
+          {/* Live Network State */}
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border ${
+              isOnline
+                ? "bg-emerald-950/60 border-emerald-500/30 text-emerald-400"
+                : "bg-amber-950/80 border-[#FFD23F]/80 text-[#FFD23F] animate-pulse"
+            }`}
+          >
+            {isOnline ? (
+              <>
+                <Wifi className="w-3.5 h-3.5" />
+                <span>ONLINE (4G/5G)</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-bold">ROOFTOP OFFLINE MODE</span>
+              </>
+            )}
+          </div>
+
+          <span className="hidden sm:inline text-xs font-mono text-emerald-400 bg-emerald-950/40 px-3 py-1 rounded-full border border-emerald-500/30">
+            ● Field Channel Encrypted
+          </span>
+        </div>
       </div>
+
+      {/* Offline Notice Banner */}
+      {offlineNotice && (
+        <div className="mb-6 p-4 rounded-xl bg-amber-950/70 border border-[#FFD23F]/50 text-amber-200 font-mono text-xs flex items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <Database className="w-4 h-4 text-[#FFD23F] shrink-0" />
+            <span>{offlineNotice}</span>
+          </div>
+          {vaultQueuedProofs.length > 0 && isOnline && (
+            <button
+              onClick={handleManualVaultSync}
+              disabled={syncingVault}
+              className="px-3 py-1 bg-[#FFD23F] hover:bg-amber-300 text-black font-bold rounded text-xs flex items-center gap-1.5 shrink-0"
+            >
+              <RefreshCw className={`w-3 h-3 ${syncingVault ? "animate-spin" : ""}`} />
+              <span>Sync Now</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Main Job Overview Card */}
       <div className="glass-panel rounded-2xl p-6 sm:p-8 border border-amber-500/30 mb-8 shadow-xl">
@@ -259,7 +479,9 @@ export default function JobDetailPage({ params }: PageProps) {
             <MapPin className="w-4 h-4 text-[#FFD23F] shrink-0 mt-0.5" />
             <div>
               <div className="text-slate-500 uppercase">Site Physical Address</div>
-              <div className="text-slate-200 mt-0.5">{job.siteAddress}, {job.city}, {job.state} - {job.pincode}</div>
+              <div className="text-slate-200 mt-0.5">
+                {job.siteAddress}, {job.city}, {job.state} - {job.pincode}
+              </div>
             </div>
           </div>
 
@@ -334,7 +556,7 @@ export default function JobDetailPage({ params }: PageProps) {
               disabled={statusLoading}
               className="px-4 py-2 text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
             >
-              Mark &#34;Team En Route&#34;
+              Mark &quot;Team En Route&quot;
             </button>
           )}
 
@@ -344,7 +566,7 @@ export default function JobDetailPage({ params }: PageProps) {
               disabled={statusLoading}
               className="px-4 py-2 text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors"
             >
-              Check-In &#34;Arrived On Site&#34;
+              Check-In &quot;Arrived On Site&quot;
             </button>
           )}
 
@@ -369,10 +591,21 @@ export default function JobDetailPage({ params }: PageProps) {
           )}
 
           {job.status === "completed" && (
-            <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5 bg-emerald-950/40 px-3 py-1.5 rounded border border-emerald-500/30">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Project Fully Commissioned and Verified</span>
-            </span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5 bg-emerald-950/40 px-3 py-1.5 rounded border border-emerald-500/30">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Project Fully Commissioned and Verified</span>
+              </span>
+              <a
+                href={`/api/jobs/${job.id}/commissioning-report`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-1.5 text-xs font-bold bg-[#FFD23F] hover:bg-amber-300 text-black rounded-lg transition-colors font-mono flex items-center gap-1.5 shadow-md shadow-amber-500/10"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>View DISCOM Compliance Certificate</span>
+              </a>
+            </div>
           )}
         </div>
       </div>
@@ -388,7 +621,7 @@ export default function JobDetailPage({ params }: PageProps) {
                 <span>CAD Schematics &amp; Permits</span>
               </h2>
               <p className="text-xs text-slate-400 mt-1">
-                Authorized engineering documentation via secure presigned storage.
+                Authorized engineering documentation via secure storage.
               </p>
             </div>
             <span className="text-xs font-mono text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-500/30">
@@ -444,11 +677,11 @@ export default function JobDetailPage({ params }: PageProps) {
                 <span>Geotagged Proof-of-Work</span>
               </h2>
               <p className="text-xs text-slate-400 mt-1">
-                Upload photos/videos with automated GPS coordinate watermarking.
+                Offline-First upload with IndexedDB caching &amp; GPS watermarking.
               </p>
             </div>
             <span className="text-xs font-mono text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30">
-              Tamper-Evident
+              Vault Protected
             </span>
           </div>
 
@@ -456,7 +689,7 @@ export default function JobDetailPage({ params }: PageProps) {
             {/* GPS Trigger Button */}
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2 font-mono">
-                Satellite GPS Acquisition
+                Satellite GPS Fix
               </label>
               <button
                 type="button"
@@ -466,6 +699,39 @@ export default function JobDetailPage({ params }: PageProps) {
                 <Crosshair className="w-4 h-4 text-[#FFD23F]" />
                 <span>{gpsStatus}</span>
               </button>
+            </div>
+
+            {/* Photo Capture / File Selection */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2 font-mono">
+                Rooftop Camera Photo / Proof Image
+              </label>
+              <div className="flex items-center gap-3">
+                <label className="flex-1 cursor-pointer flex items-center justify-center gap-2 bg-[#0B0F19] hover:bg-slate-900 border border-dashed border-slate-700 hover:border-[#FFD23F] text-slate-300 text-xs py-3 px-4 rounded-lg font-mono transition-colors">
+                  <Camera className="w-4 h-4 text-amber-400" />
+                  <span>{photoFileName || "Capture via Rooftop Camera or Gallery"}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {photoPreview && (
+                <div className="mt-2 relative w-full h-32 rounded-lg overflow-hidden border border-amber-500/30 bg-black">
+                  <img
+                    src={photoPreview}
+                    alt="Proof Preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="absolute bottom-2 left-2 bg-black/80 text-[10px] text-amber-400 font-mono px-2 py-0.5 rounded">
+                    Preview: {photoFileName}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Document Type Selector */}
@@ -502,7 +768,7 @@ export default function JobDetailPage({ params }: PageProps) {
             {uploadSuccess && (
               <div className="p-3 rounded-lg bg-emerald-950/50 border border-emerald-500/50 text-emerald-300 text-xs flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Proof-of-work geotagged and committed to AKR audit logs.</span>
+                <span>Proof securely recorded and geotagged.</span>
               </div>
             )}
 
@@ -514,16 +780,59 @@ export default function JobDetailPage({ params }: PageProps) {
               {uploading ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                  <span>Transmitting Encrypted Geotags...</span>
+                  <span>Processing Geotag Vault...</span>
                 </>
               ) : (
                 <>
                   <Upload className="w-4 h-4" />
-                  <span>Transmit Geotagged Proof to AKR Dispatch</span>
+                  <span>
+                    {isOnline ? "Transmit Geotagged Proof to Dispatch" : "Save to Offline Vault (Auto-Sync)"}
+                  </span>
                 </>
               )}
             </button>
           </form>
+
+          {/* Offline Vault Queued Proofs List */}
+          {vaultQueuedProofs.length > 0 && (
+            <div className="pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-mono uppercase text-amber-400 flex items-center gap-1.5 font-bold">
+                  <Database className="w-3.5 h-3.5" />
+                  <span>Offline Vault ({vaultQueuedProofs.length} Unsynced)</span>
+                </h3>
+                {isOnline && (
+                  <button
+                    onClick={handleManualVaultSync}
+                    disabled={syncingVault}
+                    className="text-[11px] font-mono text-black bg-[#FFD23F] hover:bg-amber-300 px-2 py-0.5 rounded font-bold flex items-center gap-1"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${syncingVault ? "animate-spin" : ""}`} />
+                    <span>Sync Vault</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {vaultQueuedProofs.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3 rounded-lg bg-amber-950/30 border border-amber-500/40 text-xs font-mono flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="text-amber-200 font-bold">{item.fileName}</div>
+                      <div className="text-slate-400 text-[10px]">
+                        GPS: {item.latitude.toFixed(4)}°N, {item.longitude.toFixed(4)}°E (±{item.accuracy || 5}m)
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/40">
+                      Pending Sync ⏳
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Uploaded Proofs List */}
           <div className="pt-4 border-t border-slate-800">

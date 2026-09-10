@@ -64,6 +64,7 @@ export interface JobDocument {
   uploadedBy: string;
   uploaderRole: 'ADMIN' | 'SUBCONTRACTOR';
   geotag?: Geotag;
+  metadata?: Record<string, unknown>;
   createdAt: string;
 }
 

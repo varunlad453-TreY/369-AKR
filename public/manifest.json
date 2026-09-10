@@ -1,0 +1,36 @@
+{
+  "name": "369 AKR UNIVERSE - Subcontractor Operations Portal",
+  "short_name": "AKR SOP",
+  "description": "Field Subcontractor Operations Portal for 369 AKR UNIVERSE Solar Infrastructure.",
+  "start_url": "/portal",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#06090e",
+  "theme_color": "#0B0F19",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/images/logo/logo-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Field Dispatches",
+      "short_name": "Dispatches",
+      "description": "Open assigned solar rooftop installation dispatches",
+      "url": "/portal",
+      "icons": [{ "src": "/images/logo/logo-icon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Subcontractor Gateway",
+      "short_name": "Gateway",
+      "description": "Secure SMS OTP verification portal",
+      "url": "/gateway",
+      "icons": [{ "src": "/images/logo/logo-icon.svg", "sizes": "96x96" }]
+    }
+  ]
+}

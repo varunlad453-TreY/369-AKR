@@ -52,6 +52,12 @@ export function generateSecureVendorCode(prefix: string = "JOB"): string {
   return `AKR-${prefix.toUpperCase()}-${randomSegment}${timestampToken}`;
 }
 
+export function generateJobCode(city: string = "SITE"): string {
+  const cleanCity = city.trim().slice(0, 3).toUpperCase() || "SOL";
+  const randomNum = Math.floor(100 + Math.random() * 900);
+  return `AKR-2026-${cleanCity}-${randomNum}`;
+}
+
 export function formatDateTime(dateStr: string): string {
   try {
     const d = new Date(dateStr);

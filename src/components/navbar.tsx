@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Shield, KeyRound, LayoutDashboard, HardHat, Radio, ArrowRight } from "lucide-react";
+import { Shield, KeyRound, LayoutDashboard, HardHat, ArrowRight } from "lucide-react";
+import { NetworkStatusIndicator } from "@/components/network-status-indicator";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -34,15 +35,11 @@ export function Navbar() {
           </span>
         </Link>
 
-        {/* Live System Status */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/50 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <Radio className="w-3.5 h-3.5 ml-1" />
-          <span>RLS GATEWAY SECURED | 100% ONLINE</span>
+        {/* Live Network & Offline Vault Indicator */}
+        <div className="hidden sm:flex items-center">
+          <NetworkStatusIndicator />
         </div>
+
 
         {/* Navigation Links */}
         <nav className="flex items-center gap-1 sm:gap-2">

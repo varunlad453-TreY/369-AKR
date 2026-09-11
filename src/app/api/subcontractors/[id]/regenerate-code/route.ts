@@ -9,7 +9,7 @@ interface Context {
 export async function POST(req: NextRequest, { params }: Context) {
   try {
     const { id } = await params;
-    const newCode = generateSecureVendorCode("VND");
+    const newCode = generateSecureVendorCode();
     const supabase = await createServerSupabaseClient();
 
     const { data, error } = await supabase

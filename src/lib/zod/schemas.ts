@@ -53,6 +53,10 @@ export const subcontractorOnboardingSchema = z.object({
     .regex(/^(\+91[\-\s]?)?[6-9]\d{9}$/, "Please enter a valid Indian mobile number (+91 or 10 digits starting with 6-9)"),
   licenseNumber: z.string().optional(),
   stateRegion: z.string().min(2, "State/Region is required"),
+  vendorCode: z
+    .string()
+    .min(6, "Vendor Code must be at least 6 characters (e.g. AKR-1114)")
+    .optional(),
 });
 
 export type SubcontractorOnboardingInput = z.infer<typeof subcontractorOnboardingSchema>;

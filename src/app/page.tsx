@@ -139,7 +139,7 @@ export default function HomePage() {
               </div>
               <h3 className="text-sm font-bold text-slate-900">Get Your Vendor Code</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                AKR Central Dispatch issues a unique Vendor Code (e.g. <code>AKR-JOB-7K9M-SEC</code>) for your assigned project.
+                AKR Central Dispatch issues a unique Vendor Code (e.g. <code>AKR-1114</code>) for your assigned project.
               </p>
             </div>
 
@@ -213,12 +213,12 @@ export default function HomePage() {
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-sans">Vendor Code:</span>
                 <code className="font-semibold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
-                  AKR-JOB-7K9M-SEC
+                  AKR-1114
                 </code>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-sans">Registered Phone:</span>
-                <span className="text-slate-800">+91 98120 37550</span>
+                <span className="text-slate-800">+91 95526 28232</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-sans">Demo SMS OTP:</span>

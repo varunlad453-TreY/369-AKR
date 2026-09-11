@@ -97,7 +97,7 @@ export default function GatewayPage() {
                   type="text"
                   value={vendorCode}
                   onChange={(e) => setVendorCode(e.target.value.toUpperCase())}
-                  placeholder="e.g. AKR-JOB-7K9M-SEC"
+                  placeholder="e.g. AKR-1114"
                   className="w-full bg-white border border-slate-300 rounded px-3 py-2.5 text-slate-900 font-mono text-sm tracking-wide uppercase placeholder:text-slate-400 focus:outline-none focus:border-slate-900 transition-colors"
                   autoFocus
                   required
@@ -105,8 +105,8 @@ export default function GatewayPage() {
                 <KeyRound className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
               </div>
               <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
-                Enter the unique code provided in your work order agreement. We will send a quick
-                6-digit SMS OTP to your registered phone.
+                Enter your assigned 7-character vendor code (e.g. <code className="font-bold text-slate-800">AKR-1114</code>). We will send a quick
+                6-digit SMS OTP to your registered phone number.
               </p>
             </div>
 
@@ -144,6 +144,27 @@ export default function GatewayPage() {
             <div className="space-y-2">
               <button
                 type="button"
+                onClick={() => handleQuickFill("AKR-1114")}
+                className="w-full text-left p-2.5 rounded bg-emerald-50/60 hover:bg-emerald-100/70 border border-emerald-200 transition-colors flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <span>Swarajya Construction and Developers</span>
+                    <span className="text-[9px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded border border-emerald-300">
+                      NEW VENDOR
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-600 mt-0.5">
+                    Code: <span className="font-mono font-bold text-slate-900">AKR-1114</span> • Phone: +91 95526 28232
+                  </div>
+                </div>
+                <span className="text-[10px] text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 shrink-0 font-medium">
+                  Hingoli, MH
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleQuickFill("AKR-JOB-7K9M-SEC")}
                 className="w-full text-left p-2.5 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center justify-between"
               >
@@ -155,22 +176,6 @@ export default function GatewayPage() {
                 </div>
                 <span className="text-[10px] text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0 font-medium">
                   Rohtak 450 kWp
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill("AKR-JOB-4X2P-SEC")}
-                className="w-full text-left p-2.5 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center justify-between"
-              >
-                <div>
-                  <div className="font-bold text-slate-900">Thar High-Voltage Grid Works</div>
-                  <div className="text-[11px] text-slate-500">
-                    Code: <span className="font-mono font-semibold">AKR-JOB-4X2P-SEC</span> • Phone: +91 90509 37550
-                  </div>
-                </div>
-                <span className="text-[10px] text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0 font-medium">
-                  Jaipur 1.2 MWp
                 </span>
               </button>
             </div>

@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { companyName, contactPerson, phoneNumber, licenseNumber, stateRegion } = parseResult.data;
-    const vendorCode = generateSecureVendorCode("VND");
+    const { companyName, contactPerson, phoneNumber, licenseNumber, stateRegion, vendorCode: customCode } = parseResult.data;
+    const vendorCode = customCode?.trim().toUpperCase() || generateSecureVendorCode();
 
     const supabase = await createServerSupabaseClient();
 

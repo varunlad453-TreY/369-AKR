@@ -30,26 +30,29 @@ export function maskPhoneNumber(phone: string): string {
 }
 
 /**
- * Generates a unique, cryptographically secure Vendor Code.
- * Format: AKR-[TYPE]-[RANDOM_ALPHANUM]-[CHECKSUM]
- * Example: AKR-JOB-8K9N-SEC
+ * Generates a unique Vendor Code matching the client specification:
+ * Format: AKR-XXXX (7 alphanumeric characters: 'AKR' prefix + 4 numeric digits, e.g. AKR-1114)
+ * @param customNumber Optional specific number or code override
  */
-export function generateSecureVendorCode(prefix: string = "JOB"): string {
-  const characters = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // Base32 unambiguous
-  let randomSegment = "";
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    const bytes = new Uint8Array(4);
-    crypto.getRandomValues(bytes);
-    for (let i = 0; i < 4; i++) {
-      randomSegment += characters[bytes[i] % characters.length];
-    }
-  } else {
-    for (let i = 0; i < 4; i++) {
-      randomSegment += characters[Math.floor(Math.random() * characters.length)];
-    }
+export function generateSecureVendorCode(customNumber?: number | string): string {
+  if (typeof customNumber === "string") {
+    const trimmed = customNumber.trim().toUpperCase();
+    if (trimmed.startsWith("AKR-")) return trimmed;
+    if (/^\d{4}$/.test(trimmed)) return `AKR-${trimmed}`;
   }
-  const timestampToken = Date.now().toString(36).slice(-3).toUpperCase();
-  return `AKR-${prefix.toUpperCase()}-${randomSegment}${timestampToken}`;
+  if (typeof customNumber === "number") {
+    return `AKR-${customNumber.toString().padStart(4, "0")}`;
+  }
+
+  // Generate 4-digit code (1000 - 9999)
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const arr = new Uint16Array(1);
+    crypto.getRandomValues(arr);
+    const num = 1000 + (arr[0] % 9000);
+    return `AKR-${num}`;
+  }
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `AKR-${num}`;
 }
 
 export function generateJobCode(city: string = "SITE"): string {

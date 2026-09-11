@@ -13,8 +13,10 @@ import {
   AlertTriangle,
   RefreshCw,
   CheckCircle2,
+  KeyRound,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { generateSecureVendorCode } from "@/lib/utils";
 
 export default function NewSubcontractorPage() {
   const router = useRouter();
@@ -22,8 +24,9 @@ export default function NewSubcontractorPage() {
   const [companyName, setCompanyName] = useState("");
   const [contactPerson, setContactPerson] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("+91 ");
-  const [stateRegion, setStateRegion] = useState("Haryana / NCR");
+  const [stateRegion, setStateRegion] = useState("Maharashtra (Hingoli / Marathwada)");
   const [licenseNumber, setLicenseNumber] = useState("");
+  const [vendorCode, setVendorCode] = useState("AKR-1114");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,9 +44,8 @@ export default function NewSubcontractorPage() {
     try {
       const supabase = createClient();
 
-      // Generate random 4-char alphanumeric token for vendor code
-      const randToken = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const generatedCode = `AKR-JOB-${randToken}-SEC`;
+      // Format: AKR-XXXX (e.g. AKR-1114)
+      const finalVendorCode = vendorCode.trim().toUpperCase() || generateSecureVendorCode();
 
       const { data, error: insertError } = await supabase
         .from("subcontractors")
@@ -53,7 +55,7 @@ export default function NewSubcontractorPage() {
           phone_number: phoneNumber.trim(),
           state_region: stateRegion.trim(),
           license_number: licenseNumber.trim() || null,
-          vendor_code: generatedCode,
+          vendor_code: finalVendorCode,
           is_active: true,
           rating: 5.0,
         })
@@ -74,7 +76,7 @@ export default function NewSubcontractorPage() {
           resource_type: "subcontractors",
           metadata: {
             companyName: data.company_name,
-            vendorCode: generatedCode,
+            vendorCode: finalVendorCode,
           },
         });
       } catch {
@@ -178,31 +180,61 @@ export default function NewSubcontractorPage() {
                 onChange={(e) => setStateRegion(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-slate-900"
               >
+                <option value="Maharashtra (Hingoli / Marathwada)">Maharashtra (Hingoli / Marathwada)</option>
                 <option value="Haryana / NCR">Haryana / NCR</option>
                 <option value="Rajasthan Hub">Rajasthan Hub</option>
                 <option value="Punjab Region">Punjab Region</option>
                 <option value="Uttar Pradesh Central">Uttar Pradesh Central</option>
                 <option value="Gujarat Solar Corridor">Gujarat Solar Corridor</option>
+                <option value="Madhya Pradesh Region">Madhya Pradesh Region</option>
+                <option value="Karnataka Hub">Karnataka Hub</option>
               </select>
             </div>
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Electrical Contractor License (Optional)
+                License / GST / Udyam Number (Optional)
               </label>
               <input
                 type="text"
                 value={licenseNumber}
                 onChange={(e) => setLicenseNumber(e.target.value)}
-                placeholder="e.g. DISCOM/ELEC/2026/0942"
+                placeholder="e.g. GST: 27ENRPM7534P1ZV / UDYAM-MH-12-0015908"
                 className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-slate-900 text-xs placeholder:text-slate-400 focus:outline-none focus:border-slate-900"
               />
             </div>
           </div>
 
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-semibold text-slate-700">
+                Assigned Vendor Code <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setVendorCode(generateSecureVendorCode())}
+                className="text-[11px] text-slate-600 hover:text-slate-900 underline flex items-center gap-1 font-mono"
+              >
+                <KeyRound className="w-3 h-3" />
+                <span>Auto-Generate Random Code</span>
+              </button>
+            </div>
+            <input
+              type="text"
+              value={vendorCode}
+              onChange={(e) => setVendorCode(e.target.value.toUpperCase())}
+              placeholder="e.g. AKR-1114"
+              className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-slate-900 font-mono font-bold text-xs placeholder:text-slate-400 focus:outline-none focus:border-slate-900 uppercase tracking-wide"
+              required
+            />
+            <p className="mt-1 text-[11px] text-slate-500">
+              Client Standard: 7-character code (Format: <code className="font-bold text-slate-800">AKR-XXXX</code>). First vendor is <code className="font-bold text-emerald-700">AKR-1114</code>.
+            </p>
+          </div>
+
           <div className="p-3 bg-slate-50 border border-slate-200 rounded text-slate-600 text-[11px] leading-relaxed">
-            Upon enrollment, the system will automatically generate a secure 16-character Vendor Code
-            (e.g. <code>AKR-JOB-XXXX-SEC</code>) for this partner to access work orders via SMS verification.
+            Upon enrollment, the contractor will be bound to their unique Vendor Code
+            (e.g. <code className="font-bold">AKR-1114</code>) to access solar dispatches and blueprints via mobile SMS OTP verification.
           </div>
 
           <div className="pt-4 border-t border-slate-200 flex items-center justify-between gap-4">

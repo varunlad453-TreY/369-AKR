@@ -1,0 +1,95 @@
+{
+  "vendorCode": "AKR-1114",
+  "companyName": "Swarajya Construction and Developers",
+  "constitution": "Proprietorship",
+  "proprietor": "Yogesh Dnyaneshwar Magar",
+  "contactPerson": "Yogesh Dnyaneshwar Magar",
+  "phoneNumber": "+919552628232",
+  "email": "swarajya.construction1611@gmail.com",
+  "dateOfIncorporation": "2023-08-31",
+  "gstin": "27ENRPM7534P1ZV",
+  "pan": "ENRPM7534P",
+  "udyamRegistrationNumber": "UDYAM-MH-12-0015908",
+  "aadhaarNumber": "9978 0205 9920",
+  "dateOfBirth": "1999-10-08",
+  "gender": "Male",
+  "principalAddress": {
+    "premises": "At Malharwadi",
+    "post": "Hingoli",
+    "taluka": "Hingoli",
+    "city": "Hingoli",
+    "district": "Hingoli",
+    "state": "Maharashtra",
+    "pincode": "431513",
+    "coordinates": {
+      "latitude": 19.5146476,
+      "longitude": 76.8681065
+    }
+  },
+  "residentialAddress": {
+    "village": "Daudgaon",
+    "post": "Daudgaon",
+    "district": "Hingoli",
+    "state": "Maharashtra",
+    "pincode": "431509"
+  },
+  "banking": {
+    "primary": {
+      "bankName": "HDFC Bank",
+      "accountNumber": "50200124368375",
+      "accountType": "Biz Pro Plus Current Account",
+      "ifscCode": "HDFC0001991",
+      "branch": "Hingoli - Nawa Mondha, Plot No 8/163",
+      "customerStatus": "Regular"
+    },
+    "secondary": {
+      "bankName": "Maharashtra Gramin Bank",
+      "accountNumber": "80085922894",
+      "ifscCode": "MAHG0004204"
+    }
+  },
+  "verifiedDocuments": [
+    {
+      "type": "GST_CERTIFICATE",
+      "title": "Form GST REG-06 Registration Certificate",
+      "identifier": "27ENRPM7534P1ZV",
+      "filePath": "/documents/subcontractors/AKR-1114/gst_registration_certificate.pdf",
+      "fileType": "pdf"
+    },
+    {
+      "type": "UDYAM_MSME",
+      "title": "MSME Udyam Registration Certificate",
+      "identifier": "UDYAM-MH-12-0015908",
+      "filePath": "/documents/subcontractors/AKR-1114/udyam_msme_registration.pdf",
+      "fileType": "pdf"
+    },
+    {
+      "type": "BANK_STATEMENT",
+      "title": "HDFC Bank Account Confirmation Statement",
+      "identifier": "50200124368375",
+      "filePath": "/documents/subcontractors/AKR-1114/bank_statement_hdfc.pdf",
+      "fileType": "pdf"
+    },
+    {
+      "type": "AADHAAR_FRONT",
+      "title": "UIDAI Aadhaar Card (Front)",
+      "identifier": "9978 0205 9920",
+      "filePath": "/documents/subcontractors/AKR-1114/aadhaar_card_front.jpeg",
+      "fileType": "image"
+    },
+    {
+      "type": "AADHAAR_BACK",
+      "title": "UIDAI Aadhaar Card (Back / Address Proof)",
+      "identifier": "9978 0205 9920",
+      "filePath": "/documents/subcontractors/AKR-1114/aadhaar_card_back.jpeg",
+      "fileType": "image"
+    },
+    {
+      "type": "PAN_CARD",
+      "title": "Income Tax Department PAN Card",
+      "identifier": "ENRPM7534P",
+      "filePath": "/documents/subcontractors/AKR-1114/pan_card.jpeg",
+      "fileType": "image"
+    }
+  ]
+}

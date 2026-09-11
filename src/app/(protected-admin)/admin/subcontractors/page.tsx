@@ -14,6 +14,12 @@ import {
   CheckCircle2,
   AlertTriangle,
   Trash2,
+  FileText,
+  ShieldCheck,
+  ExternalLink,
+  X,
+  CreditCard,
+  Building,
 } from "lucide-react";
 import { Subcontractor } from "@/types";
 import { createClient } from "@/lib/supabase/client";
@@ -24,6 +30,7 @@ export default function AdminSubcontractorsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedKycSub, setSelectedKycSub] = useState<Subcontractor | null>(null);
   const [notification, setNotification] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   const fetchSubcontractors = async () => {
@@ -267,6 +274,14 @@ export default function AdminSubcontractorsPage() {
                     </td>
                     <td className="px-5 py-4 text-right whitespace-nowrap space-x-2">
                       <button
+                        onClick={() => setSelectedKycSub(sub)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded font-medium transition-colors cursor-pointer"
+                        title="View verified compliance & KYC documents"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-blue-600" />
+                        <span>KYC Docs</span>
+                      </button>
+                      <button
                         onClick={() => handleRegenerateCode(sub)}
                         disabled={regeneratingId === sub.id || deletingId === sub.id}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-300 rounded font-medium transition-colors cursor-pointer disabled:opacity-50"
@@ -296,6 +311,204 @@ export default function AdminSubcontractorsPage() {
           </div>
         )}
       </div>
+
+      {/* KYC Compliance & Verification Modal */}
+      {selectedKycSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded bg-slate-900 text-white flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span>{selectedKycSub.companyName}</span>
+                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800">
+                      {selectedKycSub.vendorCode}
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Verified Vendor Profile &amp; Regulatory KYC Compliance
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedKycSub(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-5 text-xs">
+              {/* Profile Overview */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded border border-slate-200">
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-slate-500">Proprietor / Supervisor</span>
+                  <div className="font-bold text-slate-900 text-sm mt-0.5">{selectedKycSub.contactPerson}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-slate-500">Registered Mobile (OTP Gateway)</span>
+                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">{selectedKycSub.phoneNumber}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-slate-500">Operational Region</span>
+                  <div className="font-medium text-slate-800 mt-0.5">{selectedKycSub.stateRegion}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-slate-500">Compliance &amp; License Number</span>
+                  <div className="font-mono text-slate-800 mt-0.5">{selectedKycSub.licenseNumber || "Recorded in file"}</div>
+                </div>
+              </div>
+
+              {/* Specific Details for Swarajya Construction and Developers (AKR-1114) */}
+              {selectedKycSub.vendorCode === "AKR-1114" && (
+                <>
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-slate-900 uppercase text-[11px] tracking-wider text-slate-500">
+                      Statutory Tax &amp; MSME Registrations
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="p-2.5 rounded bg-white border border-slate-200">
+                        <div className="text-[10px] text-slate-500">GSTIN (State 27)</div>
+                        <div className="font-mono font-bold text-slate-900 mt-0.5">27ENRPM7534P1ZV</div>
+                        <div className="text-[10px] text-emerald-600 font-semibold mt-1">● Regular Taxpayer</div>
+                      </div>
+                      <div className="p-2.5 rounded bg-white border border-slate-200">
+                        <div className="text-[10px] text-slate-500">MSME Udyam No.</div>
+                        <div className="font-mono font-bold text-slate-900 mt-0.5">UDYAM-MH-12-0015908</div>
+                        <div className="text-[10px] text-blue-600 font-semibold mt-1">● Micro Enterprise</div>
+                      </div>
+                      <div className="p-2.5 rounded bg-white border border-slate-200">
+                        <div className="text-[10px] text-slate-500">Income Tax PAN</div>
+                        <div className="font-mono font-bold text-slate-900 mt-0.5">ENRPM7534P</div>
+                        <div className="text-[10px] text-slate-600 font-semibold mt-1">● Aadhaar Linked</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-slate-900 uppercase text-[11px] tracking-wider text-slate-500">
+                      Disbursement Bank Account
+                    </h3>
+                    <div className="p-3 bg-white border border-slate-200 rounded flex items-start gap-3">
+                      <CreditCard className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <div className="font-bold text-slate-900">HDFC Bank Ltd. (Biz Pro Plus Current Account)</div>
+                        <div className="font-mono text-slate-700">Account No: 50200124368375 • IFSC: HDFC0001991</div>
+                        <div className="text-[11px] text-slate-500">Branch: Hingoli - Nawa Mondha, Plot No 8/163, Hingoli 431513</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-slate-900 uppercase text-[11px] tracking-wider text-slate-500">
+                      Registered Proof Documents (Available for Audit Download)
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <a
+                        href="/documents/subcontractors/AKR-1114/gst_registration_certificate.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2.5 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors flex items-center justify-between group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-red-600" />
+                          <div>
+                            <div className="font-semibold text-slate-900 group-hover:text-blue-600">Form GST REG-06 Certificate</div>
+                            <div className="text-[10px] text-slate-500">PDF • Verified 27ENRPM7534P1ZV</div>
+                          </div>
+                        </div>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                      </a>
+
+                      <a
+                        href="/documents/subcontractors/AKR-1114/udyam_msme_registration.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2.5 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors flex items-center justify-between group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-600" />
+                          <div>
+                            <div className="font-semibold text-slate-900 group-hover:text-blue-600">Udyam Registration Certificate</div>
+                            <div className="text-[10px] text-slate-500">PDF • UDYAM-MH-12-0015908</div>
+                          </div>
+                        </div>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                      </a>
+
+                      <a
+                        href="/documents/subcontractors/AKR-1114/bank_statement_hdfc.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2.5 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors flex items-center justify-between group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-emerald-600" />
+                          <div>
+                            <div className="font-semibold text-slate-900 group-hover:text-blue-600">HDFC Bank Account Confirmation</div>
+                            <div className="text-[10px] text-slate-500">PDF • A/C 50200124368375</div>
+                          </div>
+                        </div>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                      </a>
+
+                      <a
+                        href="/documents/subcontractors/AKR-1114/aadhaar_card_front.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2.5 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors flex items-center justify-between group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-amber-600" />
+                          <div>
+                            <div className="font-semibold text-slate-900 group-hover:text-blue-600">UIDAI Aadhaar Card (Front/Back)</div>
+                            <div className="text-[10px] text-slate-500">Image • 9978 0205 9920</div>
+                          </div>
+                        </div>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                      </a>
+
+                      <a
+                        href="/documents/subcontractors/AKR-1114/pan_card.jpeg"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2.5 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors flex items-center justify-between group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-purple-600" />
+                          <div>
+                            <div className="font-semibold text-slate-900 group-hover:text-blue-600">Income Tax PAN Card</div>
+                            <div className="text-[10px] text-slate-500">Image • ENRPM7534P</div>
+                          </div>
+                        </div>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                      </a>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <div className="text-[11px] text-slate-500">
+                Authorized for Utility-Scale &amp; Commercial Rooftop Dispatches
+              </div>
+              <button
+                onClick={() => setSelectedKycSub(null)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-semibold transition-colors"
+              >
+                Close Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

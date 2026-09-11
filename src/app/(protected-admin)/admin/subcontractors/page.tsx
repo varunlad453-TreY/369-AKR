@@ -191,49 +191,36 @@ export default function AdminSubcontractorsPage() {
   const handleExportPdf = async (sub: Subcontractor) => {
     setExportingPdf(true);
     try {
-      await prepareDossier(sub);
+      const response = await fetch(
+        `/api/subcontractors/export-pdf?vendorCode=${encodeURIComponent(sub.vendorCode)}`
+      );
 
-      const element = document.getElementById("vendor-dossier-printable-document");
-      if (!element) {
-        throw new Error("Printable dossier element not found in DOM");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.details || errorData.error || "Server error during PDF generation");
       }
 
-      const html2canvasModule = await import("html2canvas");
-      const html2canvas = html2canvasModule.default || html2canvasModule;
-      const { jsPDF } = await import("jspdf");
-
-      const canvas = await html2canvas(element, {
-        scale: 2, // 2x high-res retina quality
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        windowWidth: 794,
-      });
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.98);
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
-      const pdfWidth = 210;
-      const pdfHeight = 297;
-
-      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
       const cleanFileName = `${sub.companyName.replace(/[^a-zA-Z0-9]/g, "_")}_${sub.vendorCode}_Official_Dossier.pdf`;
-      pdf.save(cleanFileName);
+      link.download = cleanFileName;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(link);
 
       setNotification({
         type: "success",
-        msg: `Official Executive Dossier for ${sub.companyName} (${sub.vendorCode}) downloaded successfully.`,
+        msg: `Official Executive Dossier for ${sub.companyName} (${sub.vendorCode}) downloaded successfully & saved to G:\\369 Daily.`,
       });
       setTimeout(() => setNotification(null), 7000);
-    } catch (pdfErr) {
+    } catch (pdfErr: any) {
       console.error("PDF generation failed", pdfErr);
       setNotification({
         type: "error",
-        msg: "Failed to generate PDF. Please try again.",
+        msg: `Failed to export PDF: ${pdfErr?.message || "Please try again."}`,
       });
       setTimeout(() => setNotification(null), 6000);
     } finally {

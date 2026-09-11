@@ -256,12 +256,12 @@ export default function AdminJobsPage() {
                   <th className="px-5 py-3">Assigned Contractor</th>
                   <th className="px-5 py-3">Schedule Window</th>
                   <th className="px-5 py-3">Current Status</th>
-                  <th className="px-5 py-3 text-right">Actions</th>
+                  <th className="px-5 py-3 text-right sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredJobs.map((job) => (
-                  <tr key={job.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={job.id} className="group hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4 font-mono font-bold text-slate-900 whitespace-nowrap">
                       {job.jobCode}
                     </td>
@@ -287,7 +287,7 @@ export default function AdminJobsPage() {
                     <td className="px-5 py-4 whitespace-nowrap">
                       <StatusBadge status={job.status} />
                     </td>
-                    <td className="px-5 py-4 text-right whitespace-nowrap space-x-2">
+                    <td className="px-5 py-4 text-right whitespace-nowrap space-x-2 sticky right-0 bg-white group-hover:bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
                       {job.status === "completed" && (
                         <a
                           href={`/api/jobs/${job.id}/commissioning-report`}

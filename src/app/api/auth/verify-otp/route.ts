@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       subcontractor: subProfile,
-      redirectUrl: `/portal?subId=${subProfile.id}`,
+      redirectUrl: `/portal`,
     });
 
     response.cookies.set("akr_sub_session", JSON.stringify({
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       company: subProfile.companyName,
       phone: subProfile.phoneNumber,
     }), {
-      httpOnly: false, // Accessible to client-side auth context for portal UI
+      httpOnly: true, // Identity is only ever read server-side (middleware + Server Components)
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 12, // 12 hours

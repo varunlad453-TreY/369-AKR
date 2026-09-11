@@ -1,23 +1,19 @@
-"use client";
-
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   HardHat,
-  MapPin,
-  Calendar,
   Zap,
   Clock,
   CheckCircle2,
   PhoneCall,
   ChevronRight,
   Building2,
-  RefreshCw,
   FileText,
 } from "lucide-react";
 import { Job, Subcontractor } from "@/types";
 import { formatKwp } from "@/lib/utils";
+import { getSubcontractorSession } from "@/lib/auth/subcontractor-session";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function StatusBadge({ status }: { status: Job["status"] }) {
   switch (status) {
@@ -60,51 +56,70 @@ function StatusBadge({ status }: { status: Job["status"] }) {
   }
 }
 
-function PortalContent() {
-  const searchParams = useSearchParams();
-  const subId = searchParams.get("subId") || "sub-001-delhi-ncr";
-
-  const [subcontractor, setSubcontractor] = useState<Subcontractor | null>(null);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadPortalData() {
-      try {
-        const subRes = await fetch("/api/subcontractors");
-        const subData = await subRes.json();
-        if (subData.success) {
-          const matched =
-            subData.subcontractors.find((s: Subcontractor) => s.id === subId) ||
-            subData.subcontractors[0];
-          setSubcontractor(matched);
-        }
-
-        const jobsRes = await fetch(`/api/jobs?subcontractorId=${subId}`);
-        const jobsData = await jobsRes.json();
-        if (jobsData.success) {
-          setJobs(jobsData.jobs);
-        }
-      } catch (err) {
-        console.error("Failed to load portal data", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadPortalData();
-  }, [subId]);
-
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center bg-slate-50">
-        <div className="flex items-center gap-2 text-slate-600 text-xs">
-          <RefreshCw className="w-4 h-4 animate-spin text-slate-500" />
-          <span>Loading your assigned projects...</span>
-        </div>
-      </div>
-    );
+export default async function SubcontractorPortalPage() {
+  // Identity comes exclusively from the server-verified session cookie — never from the URL.
+  const session = await getSubcontractorSession();
+  if (!session) {
+    redirect("/gateway");
   }
+
+  const supabase = await createServerSupabaseClient();
+
+  const { data: subRow } = await supabase
+    .from("subcontractors")
+    .select("*")
+    .eq("id", session.id)
+    .maybeSingle();
+
+  if (!subRow || !subRow.is_active) {
+    redirect("/gateway");
+  }
+
+  const subcontractor: Subcontractor = {
+    id: subRow.id,
+    authUserId: subRow.auth_user_id,
+    companyName: subRow.company_name,
+    phoneNumber: subRow.phone_number,
+    vendorCode: subRow.vendor_code,
+    contactPerson: subRow.contact_person,
+    licenseNumber: subRow.license_number,
+    stateRegion: subRow.state_region,
+    isActive: subRow.is_active,
+    rating: Number(subRow.rating) || 5.0,
+    assignedJobsCount: subRow.assigned_jobs_count || 0,
+    completedJobsCount: subRow.completed_jobs_count || 0,
+    createdAt: subRow.created_at,
+    updatedAt: subRow.updated_at,
+  };
+
+  const { data: jobRows } = await supabase
+    .from("jobs")
+    .select("*")
+    .eq("subcontractor_id", session.id)
+    .order("created_at", { ascending: false });
+
+  const jobs: Job[] = (jobRows || []).map((j) => ({
+    id: j.id,
+    jobCode: j.job_code,
+    title: j.title,
+    description: j.description,
+    siteAddress: j.site_address,
+    city: j.city,
+    state: j.state,
+    pincode: j.pincode,
+    gpsCoordinates: { lat: j.gps_lat, lng: j.gps_lng },
+    capacityKwp: Number(j.capacity_kwp),
+    systemType: j.system_type,
+    status: j.status,
+    subcontractorId: j.subcontractor_id,
+    createdBy: j.created_by,
+    scheduledStart: j.scheduled_start,
+    scheduledEnd: j.scheduled_end,
+    completedAt: j.completed_at,
+    notes: j.notes,
+    createdAt: j.created_at,
+    updatedAt: j.updated_at,
+  }));
 
   const activeJobs = jobs.filter((j) => j.status !== "completed");
   const completedJobs = jobs.filter((j) => j.status === "completed");
@@ -278,7 +293,7 @@ function PortalContent() {
                       </td>
                       <td className="px-5 py-4 text-right whitespace-nowrap">
                         <Link
-                          href={`/portal/job/${job.id}?subId=${subcontractor?.id}`}
+                          href={`/portal/job/${job.id}`}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded transition-colors"
                         >
                           <span>Open Project</span>
@@ -294,19 +309,5 @@ function PortalContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function SubcontractorPortalPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-[60vh] flex items-center justify-center bg-slate-50 text-slate-600 text-xs">
-          Loading Subcontractor Dashboard...
-        </div>
-      }
-    >
-      <PortalContent />
-    </Suspense>
   );
 }

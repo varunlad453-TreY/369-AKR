@@ -9,14 +9,19 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Brand Col */}
           <div className="space-y-2">
-            <div className="relative h-6 w-36">
-              <Image
-                src="/images/logo/logo-horizontal.svg"
-                alt="369 AKR UNIVERSE"
-                width={140}
-                height={24}
-                className="h-6 w-auto object-contain"
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative h-7 w-7 shrink-0">
+                <Image
+                  src="/images/logo/logo-icon.svg"
+                  alt="369 AKR UNIVERSE logo"
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 object-contain"
+                />
+              </div>
+              <span className="text-sm font-bold text-slate-900 tracking-tight font-sans">
+                369 AKR UNIVERSE
+              </span>
             </div>
             <p className="text-[11px] text-slate-500 font-sans leading-relaxed">
               369 AKR UNIVERSE Subcontractor Operations Portal (SOP). EPC field operations

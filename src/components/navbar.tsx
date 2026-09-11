@@ -21,16 +21,19 @@ export function Navbar() {
         {/* Brand Logo & Portal Label */}
         <div className="flex items-center gap-3 shrink-0">
           <Link href="/" className="flex items-center gap-2">
-            <div className="relative h-7 w-32 md:w-36 flex items-center">
+            <div className="relative h-8 w-8 shrink-0 flex items-center">
               <Image
-                src="/images/logo/logo-horizontal.svg"
-                alt="369 AKR UNIVERSE"
-                width={140}
-                height={28}
+                src="/images/logo/logo-icon.svg"
+                alt="369 AKR UNIVERSE logo"
+                width={32}
+                height={32}
                 priority
-                className="h-6 w-auto object-contain"
+                className="h-8 w-8 object-contain"
               />
             </div>
+            <span className="text-sm font-bold text-slate-900 tracking-tight leading-none whitespace-nowrap">
+              369 AKR UNIVERSE
+            </span>
           </Link>
           <span className="hidden sm:inline-block text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded uppercase">
             Solar EPC Portal
@@ -69,7 +72,7 @@ export function Navbar() {
             </Link>
 
             <Link
-              href="/portal"
+              href="/gateway"
               className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors ${
                 isLinkActive("/portal")
                   ? "bg-slate-100 text-slate-900 font-semibold border border-slate-300"

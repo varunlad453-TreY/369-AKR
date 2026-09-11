@@ -58,7 +58,7 @@ function VerifyOtpContent() {
         return;
       }
 
-      router.push(`/portal?subId=${data.subcontractor.id}`);
+      router.push("/portal");
     } catch {
       setError("Connection error. Please check your internet connection and try again.");
       setLoading(false);

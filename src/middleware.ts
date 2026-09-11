@@ -14,7 +14,11 @@ export async function middleware(request: NextRequest) {
     return handlePortalAuth(request);
   }
 
-  return handleAdminAuth(request);
+  if (pathname.startsWith("/admin")) {
+    return handleAdminAuth(request);
+  }
+
+  return NextResponse.next({ request });
 }
 
 async function handlePortalAuth(request: NextRequest) {

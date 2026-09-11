@@ -20,6 +20,8 @@ import {
   X,
   CreditCard,
   Building,
+  Download,
+  Share2,
 } from "lucide-react";
 import { Subcontractor } from "@/types";
 import { createClient } from "@/lib/supabase/client";
@@ -31,6 +33,7 @@ export default function AdminSubcontractorsPage() {
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedKycSub, setSelectedKycSub] = useState<Subcontractor | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   const fetchSubcontractors = async () => {
@@ -123,6 +126,64 @@ export default function AdminSubcontractorsPage() {
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const handleExportPdf = async (sub: Subcontractor) => {
+    setExportingPdf(true);
+    try {
+      const { generateVendorCertificatePdf } = await import("@/lib/pdf/generateVendorCertificate");
+
+      let kycData = undefined;
+      if (sub.vendorCode === "AKR-1114") {
+        try {
+          const res = await fetch("/documents/subcontractors/AKR-1114/kyc_profile.json");
+          if (res.ok) {
+            kycData = await res.json();
+          }
+        } catch (fetchErr) {
+          console.warn("Could not fetch kyc_profile.json", fetchErr);
+        }
+      }
+
+      const doc = await generateVendorCertificatePdf({
+        subcontractor: sub,
+        kycDetails: kycData,
+      });
+
+      const cleanFileName = `${sub.companyName.replace(/[^a-zA-Z0-9]/g, "_")}_${sub.vendorCode}_Official_Dossier.pdf`;
+      doc.save(cleanFileName);
+
+      setNotification({
+        type: "success",
+        msg: `Official PDF Dossier for ${sub.companyName} (${sub.vendorCode}) downloaded successfully.`,
+      });
+      setTimeout(() => setNotification(null), 7000);
+    } catch (pdfErr) {
+      console.error("PDF generation failed", pdfErr);
+      setNotification({
+        type: "error",
+        msg: "Failed to generate PDF. Please try again.",
+      });
+      setTimeout(() => setNotification(null), 6000);
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const handleShareWhatsApp = (sub: Subcontractor) => {
+    const text =
+      `*369 AKR UNIVERSE SOLAR EPC - VENDOR CREDENTIAL*\n\n` +
+      `Dear ${sub.contactPerson} (${sub.companyName}),\n\n` +
+      `Your contractor onboarding and statutory KYC compliance verification is *COMPLETE*.\n\n` +
+      `*OFFICIAL VENDOR CODE:* ${sub.vendorCode}\n` +
+      `*REGISTERED MOBILE:* ${sub.phoneNumber}\n` +
+      `*STATUS:* ACTIVE TIER-1 CONTRACTOR\n\n` +
+      `*Contractor Operations Gateway:*\nhttps://369akruniverse.com/gateway?code=${encodeURIComponent(sub.vendorCode)}\n\n` +
+      `Please keep your Vendor Code confidential. Use it to log in via mobile OTP to view assigned solar installations, submit milestone photos, and receive direct bank disbursements.`;
+
+    const cleanPhone = sub.phoneNumber.replace(/[^0-9]/g, "");
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
   };
 
   const filteredSubs = subcontractors.filter((sub) => {
@@ -274,6 +335,15 @@ export default function AdminSubcontractorsPage() {
                     </td>
                     <td className="px-5 py-4 text-right whitespace-nowrap space-x-2">
                       <button
+                        onClick={() => handleExportPdf(sub)}
+                        disabled={exportingPdf}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded font-medium transition-colors cursor-pointer disabled:opacity-50"
+                        title={`Export official PDF Dossier for ${sub.companyName} (${sub.vendorCode})`}
+                      >
+                        <Download className="w-3.5 h-3.5 text-amber-600" />
+                        <span>PDF</span>
+                      </button>
+                      <button
                         onClick={() => setSelectedKycSub(sub)}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded font-medium transition-colors cursor-pointer"
                         title="View verified compliance & KYC documents"
@@ -325,7 +395,7 @@ export default function AdminSubcontractorsPage() {
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <span>{selectedKycSub.companyName}</span>
-                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800">
+                    <span className="font-mono text-xs px-2.5 py-0.5 rounded-md bg-amber-50 border border-amber-300 font-bold text-amber-900 shadow-xs">
                       {selectedKycSub.vendorCode}
                     </span>
                   </h2>
@@ -334,16 +404,68 @@ export default function AdminSubcontractorsPage() {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedKycSub(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+              {/* Action Buttons in Modal Header */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleExportPdf(selectedKycSub)}
+                  disabled={exportingPdf}
+                  title="Export official onboarding dossier PDF"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{exportingPdf ? "Generating PDF..." : "Export as PDF"}</span>
+                </button>
+
+                <button
+                  onClick={() => handleShareWhatsApp(selectedKycSub)}
+                  title="Share credentials with partner via WhatsApp"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold transition-colors shadow-xs cursor-pointer"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">WhatsApp</span>
+                </button>
+
+                <button
+                  onClick={() => setSelectedKycSub(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Modal Body */}
             <div className="p-5 space-y-5 text-xs">
+              {/* Prominent Vendor Code Highlight Banner */}
+              <div className="p-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white rounded-lg border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+                <div>
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-amber-400">
+                    Assigned Master Vendor Code (Primary Identifier)
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-mono font-extrabold tracking-tight text-white mt-0.5 flex items-center gap-2.5">
+                    <span>{selectedKycSub.vendorCode}</span>
+                    <span className="text-[10px] font-sans font-semibold px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full">
+                      Verified Tier-1
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-1">
+                    Share this code with the partner. Used at <span className="text-amber-300 font-mono font-semibold">/gateway</span> to receive login OTP.
+                  </p>
+                </div>
+
+                <div className="shrink-0">
+                  <button
+                    onClick={() => handleExportPdf(selectedKycSub)}
+                    disabled={exportingPdf}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{exportingPdf ? "Exporting..." : "Download Official PDF"}</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Profile Overview */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded border border-slate-200">
                 <div>
@@ -495,16 +617,27 @@ export default function AdminSubcontractorsPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <div className="text-[11px] text-slate-500">
-                Authorized for Utility-Scale &amp; Commercial Rooftop Dispatches
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                <span>Authorized for Utility-Scale &amp; Commercial Rooftop Dispatches</span>
               </div>
-              <button
-                onClick={() => setSelectedKycSub(null)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-semibold transition-colors"
-              >
-                Close Profile
-              </button>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  onClick={() => handleExportPdf(selectedKycSub)}
+                  disabled={exportingPdf}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4 text-amber-400" />
+                  <span>{exportingPdf ? "Generating Official PDF..." : "Export as PDF"}</span>
+                </button>
+                <button
+                  onClick={() => setSelectedKycSub(null)}
+                  className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Close Profile
+                </button>
+              </div>
             </div>
           </div>
         </div>

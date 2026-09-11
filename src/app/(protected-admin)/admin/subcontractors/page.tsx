@@ -203,10 +203,11 @@ export default function AdminSubcontractorsPage() {
       const { jsPDF } = await import("jspdf");
 
       const canvas = await html2canvas(element, {
-        scale: 2.5, // 2.5x high-res retina quality (crisp typography & vectors)
+        scale: 2, // 2x high-res retina quality
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
+        windowWidth: 794,
       });
 
       const imgData = canvas.toDataURL("image/jpeg", 0.98);
@@ -735,10 +736,20 @@ export default function AdminSubcontractorsPage() {
         </div>
       )}
 
-      {/* Offscreen / Print Document Container (For crisp 2.5x capture & native @media print) */}
+      {/* Offscreen / Print Document Container (Positioned at 0,0 opacity 0 for perfect browser rasterization) */}
       {dossierSub && (
         <div
-          className="fixed left-[-9999px] top-0 pointer-events-none z-[-50] print:left-0 print:top-0 print:z-50 print:pointer-events-auto print:w-full print:bg-white"
+          id="vendor-dossier-offscreen-wrapper"
+          style={{
+            position: "fixed",
+            left: 0,
+            top: 0,
+            width: "794px",
+            zIndex: -9999,
+            opacity: 0,
+            pointerEvents: "none",
+          }}
+          className="print:static print:z-50 print:pointer-events-auto print:w-full print:bg-white print:opacity-100"
           aria-hidden="true"
         >
           <VendorDossierPrintable

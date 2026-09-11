@@ -66,3 +66,29 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
+
+/* Print optimization for Official Vendor Dossier */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #vendor-dossier-printable-document,
+  #vendor-dossier-printable-document * {
+    visibility: visible;
+  }
+  #vendor-dossier-printable-document {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 14mm !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+}

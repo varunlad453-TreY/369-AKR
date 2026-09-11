@@ -22,9 +22,11 @@ import {
   Building,
   Download,
   Share2,
+  Printer,
 } from "lucide-react";
 import { Subcontractor } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import VendorDossierPrintable from "@/components/admin/VendorDossierPrintable";
 
 export default function AdminSubcontractorsPage() {
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
@@ -33,6 +35,9 @@ export default function AdminSubcontractorsPage() {
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedKycSub, setSelectedKycSub] = useState<Subcontractor | null>(null);
+  const [dossierSub, setDossierSub] = useState<Subcontractor | null>(null);
+  const [dossierKyc, setDossierKyc] = useState<any>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [exportingPdf, setExportingPdf] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
@@ -74,6 +79,32 @@ export default function AdminSubcontractorsPage() {
   useEffect(() => {
     fetchSubcontractors();
   }, []);
+
+  useEffect(() => {
+    if (selectedKycSub) {
+      setDossierSub(selectedKycSub);
+      if (selectedKycSub.vendorCode === "AKR-1114") {
+        fetch("/documents/subcontractors/AKR-1114/kyc_profile.json")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data) setDossierKyc(data);
+          })
+          .catch(() => {});
+      } else {
+        setDossierKyc(null);
+      }
+
+      import("qrcode").then((m) => {
+        const QRCode = m.default || m;
+        const gatewayUrl = `http://localhost:3000/gateway?code=${encodeURIComponent(selectedKycSub.vendorCode)}`;
+        QRCode.toDataURL(gatewayUrl, {
+          margin: 1,
+          width: 240,
+          color: { dark: "#0F172A", light: "#FFFFFF" },
+        }).then(setQrCodeDataUrl);
+      });
+    }
+  }, [selectedKycSub]);
 
   const handleRegenerateCode = async (sub: Subcontractor) => {
     const confirmed = confirm(
@@ -128,34 +159,74 @@ export default function AdminSubcontractorsPage() {
     }
   };
 
+  const prepareDossier = async (sub: Subcontractor) => {
+    let kyc = undefined;
+    if (sub.vendorCode === "AKR-1114") {
+      try {
+        const res = await fetch("/documents/subcontractors/AKR-1114/kyc_profile.json");
+        if (res.ok) kyc = await res.json();
+      } catch {}
+    }
+    setDossierSub(sub);
+    setDossierKyc(kyc);
+
+    try {
+      const m = await import("qrcode");
+      const QRCode = m.default || m;
+      const gatewayUrl = `http://localhost:3000/gateway?code=${encodeURIComponent(sub.vendorCode)}`;
+      const qrData = await QRCode.toDataURL(gatewayUrl, {
+        margin: 1,
+        width: 240,
+        color: { dark: "#0F172A", light: "#FFFFFF" },
+      });
+      setQrCodeDataUrl(qrData);
+    } catch (e) {
+      console.warn("QR Code generation error", e);
+    }
+
+    // Small delay to allow React to paint the DOM element
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  };
+
   const handleExportPdf = async (sub: Subcontractor) => {
     setExportingPdf(true);
     try {
-      const { generateVendorCertificatePdf } = await import("@/lib/pdf/generateVendorCertificate");
+      await prepareDossier(sub);
 
-      let kycData = undefined;
-      if (sub.vendorCode === "AKR-1114") {
-        try {
-          const res = await fetch("/documents/subcontractors/AKR-1114/kyc_profile.json");
-          if (res.ok) {
-            kycData = await res.json();
-          }
-        } catch (fetchErr) {
-          console.warn("Could not fetch kyc_profile.json", fetchErr);
-        }
+      const element = document.getElementById("vendor-dossier-printable-document");
+      if (!element) {
+        throw new Error("Printable dossier element not found in DOM");
       }
 
-      const doc = await generateVendorCertificatePdf({
-        subcontractor: sub,
-        kycDetails: kycData,
+      const html2canvasModule = await import("html2canvas");
+      const html2canvas = html2canvasModule.default || html2canvasModule;
+      const { jsPDF } = await import("jspdf");
+
+      const canvas = await html2canvas(element, {
+        scale: 2.5, // 2.5x high-res retina quality (crisp typography & vectors)
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
       });
 
+      const imgData = canvas.toDataURL("image/jpeg", 0.98);
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, Math.min(imgHeight, pdfHeight));
       const cleanFileName = `${sub.companyName.replace(/[^a-zA-Z0-9]/g, "_")}_${sub.vendorCode}_Official_Dossier.pdf`;
-      doc.save(cleanFileName);
+      pdf.save(cleanFileName);
 
       setNotification({
         type: "success",
-        msg: `Official PDF Dossier for ${sub.companyName} (${sub.vendorCode}) downloaded successfully.`,
+        msg: `Official Executive Dossier for ${sub.companyName} (${sub.vendorCode}) downloaded successfully.`,
       });
       setTimeout(() => setNotification(null), 7000);
     } catch (pdfErr) {
@@ -168,6 +239,11 @@ export default function AdminSubcontractorsPage() {
     } finally {
       setExportingPdf(false);
     }
+  };
+
+  const handlePrintDossier = async (sub: Subcontractor) => {
+    await prepareDossier(sub);
+    window.print();
   };
 
   const handleShareWhatsApp = (sub: Subcontractor) => {
@@ -414,7 +490,16 @@ export default function AdminSubcontractorsPage() {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
                 >
                   <Download className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{exportingPdf ? "Generating PDF..." : "Export as PDF"}</span>
+                  <span>{exportingPdf ? "Generating..." : "Export as PDF"}</span>
+                </button>
+
+                <button
+                  onClick={() => handlePrintDossier(selectedKycSub)}
+                  title="Print or Save as Vector PDF"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded text-xs font-semibold transition-colors shadow-xs cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5 text-slate-600" />
+                  <span className="hidden sm:inline">Print</span>
                 </button>
 
                 <button
@@ -632,6 +717,14 @@ export default function AdminSubcontractorsPage() {
                   <span>{exportingPdf ? "Generating Official PDF..." : "Export as PDF"}</span>
                 </button>
                 <button
+                  onClick={() => handlePrintDossier(selectedKycSub)}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded text-xs font-semibold transition-colors cursor-pointer"
+                  title="Print or Save as Vector PDF via browser print"
+                >
+                  <Printer className="w-4 h-4 text-slate-600" />
+                  <span>Print</span>
+                </button>
+                <button
                   onClick={() => setSelectedKycSub(null)}
                   className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded text-xs font-semibold transition-colors cursor-pointer"
                 >
@@ -640,6 +733,20 @@ export default function AdminSubcontractorsPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Offscreen / Print Document Container (For crisp 2.5x capture & native @media print) */}
+      {dossierSub && (
+        <div
+          className="fixed left-[-9999px] top-0 pointer-events-none z-[-50] print:left-0 print:top-0 print:z-50 print:pointer-events-auto print:w-full print:bg-white"
+          aria-hidden="true"
+        >
+          <VendorDossierPrintable
+            subcontractor={dossierSub}
+            kycDetails={dossierKyc}
+            qrCodeDataUrl={qrCodeDataUrl}
+          />
         </div>
       )}
     </div>

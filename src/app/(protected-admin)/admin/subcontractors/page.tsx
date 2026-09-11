@@ -218,9 +218,8 @@ export default function AdminSubcontractorsPage() {
 
       const pdfWidth = 210;
       const pdfHeight = 297;
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, Math.min(imgHeight, pdfHeight));
+      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
       const cleanFileName = `${sub.companyName.replace(/[^a-zA-Z0-9]/g, "_")}_${sub.vendorCode}_Official_Dossier.pdf`;
       pdf.save(cleanFileName);
 
@@ -487,9 +486,9 @@ export default function AdminSubcontractorsPage() {
                   onClick={() => handleExportPdf(selectedKycSub)}
                   disabled={exportingPdf}
                   title="Export official onboarding dossier PDF"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-semibold transition-colors shadow-xs cursor-pointer disabled:opacity-50"
                 >
-                  <Download className="w-3.5 h-3.5 text-amber-400" />
+                  <Download className="w-3.5 h-3.5" />
                   <span>{exportingPdf ? "Generating..." : "Export as PDF"}</span>
                 </button>
 
@@ -522,20 +521,20 @@ export default function AdminSubcontractorsPage() {
 
             {/* Modal Body */}
             <div className="p-5 space-y-5 text-xs">
-              {/* Prominent Vendor Code Highlight Banner */}
-              <div className="p-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white rounded-lg border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+              {/* Vendor Code Identification Bar */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-amber-400">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
                     Assigned Master Vendor Code (Primary Identifier)
                   </div>
-                  <div className="text-2xl sm:text-3xl font-mono font-extrabold tracking-tight text-white mt-0.5 flex items-center gap-2.5">
+                  <div className="text-2xl sm:text-3xl font-mono font-extrabold tracking-tight text-slate-900 mt-0.5 flex items-center gap-2.5">
                     <span>{selectedKycSub.vendorCode}</span>
-                    <span className="text-[10px] font-sans font-semibold px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full">
-                      Verified Tier-1
+                    <span className="text-[10px] font-sans font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded">
+                      Verified &middot; Tier-1
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-300 mt-1">
-                    Share this code with the partner. Used at <span className="text-amber-300 font-mono font-semibold">/gateway</span> to receive login OTP.
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Share this code with the partner. Used at <span className="font-mono font-semibold text-slate-700">/gateway</span> to receive login OTP.
                   </p>
                 </div>
 
@@ -543,10 +542,10 @@ export default function AdminSubcontractorsPage() {
                   <button
                     onClick={() => handleExportPdf(selectedKycSub)}
                     disabled={exportingPdf}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded transition-colors shadow-xs cursor-pointer disabled:opacity-50"
                   >
                     <Download className="w-4 h-4" />
-                    <span>{exportingPdf ? "Exporting..." : "Download Official PDF"}</span>
+                    <span>{exportingPdf ? "Exporting..." : "Export as PDF"}</span>
                   </button>
                 </div>
               </div>
@@ -711,10 +710,10 @@ export default function AdminSubcontractorsPage() {
                 <button
                   onClick={() => handleExportPdf(selectedKycSub)}
                   disabled={exportingPdf}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-semibold transition-colors shadow-xs cursor-pointer disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4 text-amber-400" />
-                  <span>{exportingPdf ? "Generating Official PDF..." : "Export as PDF"}</span>
+                  <Download className="w-4 h-4" />
+                  <span>{exportingPdf ? "Exporting PDF..." : "Export as PDF"}</span>
                 </button>
                 <button
                   onClick={() => handlePrintDossier(selectedKycSub)}

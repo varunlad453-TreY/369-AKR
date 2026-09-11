@@ -1,20 +1,6 @@
 "use client";
 
 import React from "react";
-import {
-  ShieldCheck,
-  Building2,
-  Phone,
-  Mail,
-  MapPin,
-  CheckCircle2,
-  CreditCard,
-  FileText,
-  Sun,
-  Award,
-  Calendar,
-  Hash,
-} from "lucide-react";
 import { Subcontractor } from "@/types";
 
 interface VendorDossierPrintableProps {
@@ -55,15 +41,57 @@ interface VendorDossierPrintableProps {
   qrCodeDataUrl?: string;
 }
 
+/** Clean label/value row in a 2-column table */
+function DataRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <tr className="border-b border-slate-200 last:border-b-0">
+      <td className="w-[34%] align-middle py-1.5 px-3 bg-slate-50 border-r border-slate-200">
+        <span className="text-[9.5px] uppercase tracking-wider font-semibold text-slate-500">
+          {label}
+        </span>
+      </td>
+      <td className={`py-1.5 px-3 text-[11px] text-slate-900 ${mono ? "font-mono" : ""}`}>
+        {value}
+      </td>
+    </tr>
+  );
+}
+
+/** Clean, minimal section heading with subtle rule — NO dark blocks or colored bars */
+function SectionHeading({ index, title }: { index: string; title: string }) {
+  return (
+    <div className="flex items-baseline gap-2 mb-1.5 mt-3.5 first:mt-0">
+      <span className="text-[10px] font-bold text-slate-500 font-mono">{index}</span>
+      <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
+        {title}
+      </h2>
+      <div className="flex-1 border-b border-slate-200 ml-1.5" />
+    </div>
+  );
+}
+
 export default function VendorDossierPrintable({
   subcontractor: sub,
   kycDetails: kyc,
   qrCodeDataUrl,
 }: VendorDossierPrintableProps) {
-  const currentDate = new Date().toLocaleDateString("en-IN", {
+  const generatedOn = new Date().toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "long",
     year: "numeric",
+  });
+  const generatedAt = new Date().toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
   });
 
   const bank = kyc?.banking?.primary || {
@@ -75,283 +103,312 @@ export default function VendorDossierPrintable({
   };
 
   const address = kyc?.principalAddress
-    ? `${kyc.principalAddress.premises}, Post ${kyc.principalAddress.post}, ${kyc.principalAddress.district}, ${kyc.principalAddress.state} - ${kyc.principalAddress.pincode}`
+    ? `${kyc.principalAddress.premises}, Post ${kyc.principalAddress.post}, ${kyc.principalAddress.taluka ? kyc.principalAddress.taluka + ", " : ""}${kyc.principalAddress.district}, ${kyc.principalAddress.state} - ${kyc.principalAddress.pincode}`
     : `${sub.stateRegion}, India`;
 
   const verifiedDocs = kyc?.verifiedDocuments || [
-    { title: "Form GST REG-06 Certificate", identifier: kyc?.gstin || "27ENRPM7534P1ZV", fileType: "pdf" },
+    { title: "Form GST REG-06 Registration Certificate", identifier: kyc?.gstin || "27ENRPM7534P1ZV", fileType: "pdf" },
     { title: "MSME Udyam Registration Certificate", identifier: kyc?.udyamRegistrationNumber || "UDYAM-MH-12-0015908", fileType: "pdf" },
-    { title: "HDFC Bank Account Confirmation", identifier: bank.accountNumber || "50200124368375", fileType: "pdf" },
-    { title: "UIDAI Aadhaar Card (Front/Back)", identifier: kyc?.aadhaarNumber || "9978 0205 9920", fileType: "image" },
-    { title: "Income Tax PAN Card Verification", identifier: kyc?.pan || "ENRPM7534P", fileType: "image" },
+    { title: "Bank Account Confirmation Statement", identifier: bank.accountNumber || "50200124368375", fileType: "pdf" },
+    { title: "UIDAI Aadhaar Card (Front / Back Proof)", identifier: kyc?.aadhaarNumber || "9978 0205 9920", fileType: "image" },
+    { title: "Income Tax Department PAN Card", identifier: kyc?.pan || "ENRPM7534P", fileType: "image" },
   ];
+
+  const documentRef = `AKR/VND/${new Date().getFullYear()}/${sub.vendorCode.replace(/[^A-Z0-9]/gi, "")}`;
 
   return (
     <div
       id="vendor-dossier-printable-document"
-      className="w-[794px] bg-white text-slate-900 font-sans p-9 box-border border border-slate-200 shadow-2xl rounded-sm mx-auto select-none"
-      style={{ minHeight: "1123px" }}
+      className="w-[794px] bg-white text-slate-900 box-border mx-auto select-none"
+      style={{
+        width: "794px",
+        height: "1123px",
+        maxHeight: "1123px",
+        fontFamily: "'Helvetica Neue', Arial, 'Segoe UI', sans-serif",
+        padding: "16px",
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
     >
-      {/* Top Header Bar */}
-      <div className="flex items-start justify-between pb-5 border-b border-slate-200">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-xl bg-slate-950 flex items-center justify-center shadow-sm shrink-0">
-            <Sun className="w-7 h-7 text-amber-400" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-extrabold tracking-tight text-slate-950 uppercase">
-                369 AKR Universe
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-slate-700 tracking-wide uppercase">
-                Solar EPC Directorate
-              </span>
-            </div>
-            <div className="text-xs text-slate-500 font-medium tracking-tight">
-              Solar Operations, Subcontractor Credentialing &amp; Dispatch Authority
-            </div>
-          </div>
-        </div>
-
-        <div className="text-right">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>VERIFIED PARTNER</span>
-          </div>
-          <div className="text-[10px] font-mono text-slate-400 mt-1.5">
-            REF: AKR/VND/2026/{sub.vendorCode.replace(/[^A-Z0-9]/gi, "")}
-          </div>
-        </div>
-      </div>
-
-      {/* Hero Vendor Code Card */}
-      <div className="mt-5 p-5 rounded-xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white shadow-md relative overflow-hidden border border-slate-800">
-        <div className="absolute right-0 top-0 bottom-0 w-48 bg-radial from-amber-500/10 to-transparent pointer-events-none"></div>
-
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Award className="w-4 h-4 text-amber-400" />
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                Official Operational Vendor Code
-              </span>
+      {/* Outer corporate page frame */}
+      <div
+        className="border border-slate-300 h-full box-border flex flex-col justify-between"
+        style={{ padding: "26px 32px 20px 32px" }}
+      >
+        <div>
+          {/* ===== Letterhead ===== */}
+          <div className="flex items-start justify-between">
+            <div>
+              <div
+                className="text-[17px] font-bold tracking-tight text-slate-950"
+                style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+              >
+                369 AKR UNIVERSE SOLAR EPC PVT. LTD.
+              </div>
+              <div className="text-[10px] text-slate-600 mt-0.5 font-medium">
+                Directorate of Subcontractor Operations &amp; Quality Compliance
+              </div>
+              <div className="text-[8.5px] text-slate-400 mt-0.5">
+                CIN: U40106MH2024PTC000369 &nbsp;|&nbsp; www.369akruniverse.com &nbsp;|&nbsp; ops@369akruniverse.in
+              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-3xl sm:text-4xl font-mono font-black tracking-tight text-white drop-shadow-sm">
-                {sub.vendorCode}
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Tier-1 Contractor
-              </span>
+            <div className="text-right shrink-0">
+              <div className="inline-block border border-slate-700 px-2 py-0.5 bg-slate-50">
+                <span className="text-[9px] font-bold tracking-[0.15em] text-slate-800">
+                  OFFICIAL RECORD
+                </span>
+              </div>
+              <div className="text-[8.5px] text-slate-500 mt-1 font-mono">
+                Ref: {documentRef}
+              </div>
+              <div className="text-[8.5px] text-slate-500 font-mono">
+                Date: {generatedOn}
+              </div>
             </div>
+          </div>
 
-            <p className="text-xs text-slate-300 font-medium">
-              Primary digital key for Solar Project Dispatches &amp; Milestone Settlements.
+          {/* Clean corporate divider — neutral single line, NO yellow line */}
+          <div className="mt-2.5 border-t border-slate-800" />
+
+          {/* ===== Document Title ===== */}
+          <div className="text-center mt-3 mb-2">
+            <div
+              className="text-[14px] font-bold uppercase tracking-wide text-slate-950"
+              style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+            >
+              Subcontractor Empanelment &amp; KYC Compliance Dossier
+            </div>
+            <div className="text-[9.5px] text-slate-500 mt-0.5">
+              Official vendor credential record issued for internal audit, statutory compliance, and field dispatch authorization.
+            </div>
+          </div>
+
+          {/* ===== Section 01: Vendor Identification ===== */}
+          <SectionHeading index="01" title="Vendor Identification" />
+          <div className="flex gap-3 items-stretch">
+            <table className="flex-1 border border-slate-200 border-collapse text-left">
+              <tbody>
+                <DataRow
+                  label="Vendor Code"
+                  value={
+                    <span className="font-bold text-[12px] font-mono text-slate-950">
+                      {sub.vendorCode}
+                    </span>
+                  }
+                  mono
+                />
+                <DataRow
+                  label="Empanelment Status"
+                  value={
+                    <span className="font-semibold text-emerald-800">
+                      {sub.isActive ? "Active · Verified Contractor" : "Inactive"}
+                    </span>
+                  }
+                />
+                <DataRow
+                  label="Registered Entity Name"
+                  value={<span className="font-semibold text-slate-950">{sub.companyName}</span>}
+                />
+                <DataRow label="Constitution" value={kyc?.constitution || "Proprietorship Firm"} />
+                <DataRow label="Authorized Signatory" value={kyc?.proprietor || sub.contactPerson} />
+                <DataRow label="Registered Mobile (OTP)" value={sub.phoneNumber} mono />
+                <DataRow label="Email Address" value={kyc?.email || "swarajya.construction1611@gmail.com"} />
+                <DataRow label="Principal Place of Business" value={address} />
+              </tbody>
+            </table>
+
+            {/* Digital verification QR block — clean light header, NO black bar */}
+            <div className="w-[136px] shrink-0 border border-slate-200 flex flex-col items-center justify-between text-center pb-2 bg-white">
+              <div className="w-full bg-slate-100 border-b border-slate-200 py-1">
+                <span className="text-[8px] uppercase tracking-wider font-bold text-slate-700">
+                  Digital Verification
+                </span>
+              </div>
+              <div className="p-1 flex items-center justify-center my-auto">
+                {qrCodeDataUrl ? (
+                  <img src={qrCodeDataUrl} alt={`QR code for ${sub.vendorCode}`} className="w-[92px] h-[92px] block" />
+                ) : (
+                  <div className="w-[92px] h-[92px] border border-dashed border-slate-300 flex items-center justify-center text-[8px] text-slate-400">
+                    QR Verification
+                  </div>
+                )}
+              </div>
+              <div>
+                <span className="block text-[7.5px] font-mono text-slate-600 font-semibold px-1">
+                  /gateway?code={sub.vendorCode}
+                </span>
+                <span className="block text-[7px] text-slate-400 mt-0.5 px-1 leading-tight">
+                  Scan for field portal
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* ===== Section 02: Statutory & Regulatory Registrations ===== */}
+          <SectionHeading index="02" title="Statutory &amp; Regulatory Registrations" />
+          <table className="w-full border border-slate-200 border-collapse text-left">
+            <thead>
+              <tr className="bg-slate-100 border-b border-slate-300">
+                <th className="py-1 px-2.5 text-[9px] uppercase tracking-wider font-bold text-slate-700 text-left w-[32%]">
+                  Registration Type
+                </th>
+                <th className="py-1 px-2.5 text-[9px] uppercase tracking-wider font-bold text-slate-700 text-left w-[28%]">
+                  Registration Number
+                </th>
+                <th className="py-1 px-2.5 text-[9px] uppercase tracking-wider font-bold text-slate-700 text-left w-[24%]">
+                  Classification
+                </th>
+                <th className="py-1 px-2.5 text-[9px] uppercase tracking-wider font-bold text-slate-700 text-center w-[16%]">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-slate-200">
+                <td className="py-1 px-2.5 text-[10.5px] font-medium text-slate-800 border-r border-slate-200">
+                  GSTIN (State 27, Maharashtra)
+                </td>
+                <td className="py-1 px-2.5 text-[11px] font-mono font-semibold border-r border-slate-200 text-slate-900">
+                  {kyc?.gstin || "27ENRPM7534P1ZV"}
+                </td>
+                <td className="py-1 px-2.5 text-[10.5px] text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                  Regular Taxpayer
+                </td>
+                <td className="py-1 px-2.5 text-[10px] font-semibold text-emerald-800 text-center whitespace-nowrap">
+                  Verified
+                </td>
+              </tr>
+              <tr className="border-b border-slate-200 bg-slate-50/50">
+                <td className="py-1 px-2.5 text-[10.5px] font-medium text-slate-800 border-r border-slate-200">
+                  MSME Udyam Registration
+                </td>
+                <td className="py-1 px-2.5 text-[11px] font-mono font-semibold border-r border-slate-200 text-slate-900">
+                  {kyc?.udyamRegistrationNumber || "UDYAM-MH-12-0015908"}
+                </td>
+                <td className="py-1 px-2.5 text-[10.5px] text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                  Micro Enterprise
+                </td>
+                <td className="py-1 px-2.5 text-[10px] font-semibold text-emerald-800 text-center whitespace-nowrap">
+                  Verified
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1 px-2.5 text-[10.5px] font-medium text-slate-800 border-r border-slate-200">
+                  Income Tax PAN
+                </td>
+                <td className="py-1 px-2.5 text-[11px] font-mono font-semibold border-r border-slate-200 text-slate-900">
+                  {kyc?.pan || "ENRPM7534P"}
+                </td>
+                <td className="py-1 px-2.5 text-[10.5px] text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                  Aadhaar Seeded &amp; Valid
+                </td>
+                <td className="py-1 px-2.5 text-[10px] font-semibold text-emerald-800 text-center whitespace-nowrap">
+                  Verified
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* ===== Section 03: Settlement Banking Details ===== */}
+          <SectionHeading index="03" title="Verified Settlement Banking Details" />
+          <table className="w-full border border-slate-200 border-collapse text-left">
+            <tbody>
+              <DataRow label="Disbursement Bank" value={bank.bankName || "HDFC Bank Ltd."} />
+              <DataRow label="Account Type" value={bank.accountType || "Biz Pro Plus Current Account"} />
+              <DataRow label="Account Number" value={bank.accountNumber || "50200124368375"} mono />
+              <DataRow label="IFSC Code" value={bank.ifscCode || "HDFC0001991"} mono />
+              <DataRow label="Designated Branch" value={bank.branch || "Hingoli - Nawa Mondha, Plot No 8/163, Hingoli 431513"} />
+              <DataRow
+                label="Settlement Status"
+                value={
+                  <span className="font-semibold text-emerald-800">
+                    Eligible for Direct Milestone Disbursement
+                  </span>
+                }
+              />
+            </tbody>
+          </table>
+
+          {/* ===== Section 04: Verified Compliance Documents ===== */}
+          <SectionHeading index="04" title="Verified Compliance Documents on Record" />
+          <table className="w-full border border-slate-200 border-collapse text-left">
+            <thead>
+              <tr className="bg-slate-100 border-b border-slate-300">
+                <th className="py-1 px-2.5 text-[9px] uppercase tracking-wider font-bold text-slate-700 text-left w-[52%]">
+                  Document Title
+                </th>
+                <th className="py-1 px-2.5 text-[9px] uppercase tracking-wider font-bold text-slate-700 text-left w-[32%]">
+                  Registration / Identifier
+                </th>
+                <th className="py-1 px-2.5 text-[9px] uppercase tracking-wider font-bold text-slate-700 text-center w-[16%]">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {verifiedDocs.map((doc, idx) => (
+                <tr
+                  key={idx}
+                  className={`${idx !== verifiedDocs.length - 1 ? "border-b border-slate-200" : ""} ${idx % 2 === 1 ? "bg-slate-50/50" : ""}`}
+                >
+                  <td className="py-1 px-2.5 text-[10px] font-medium text-slate-800 border-r border-slate-200">
+                    {doc.title}
+                  </td>
+                  <td className="py-1 px-2.5 text-[10px] font-mono text-slate-700 border-r border-slate-200">
+                    {doc.identifier || "Verified on File"}
+                  </td>
+                  <td className="py-1 px-2.5 text-[10px] font-semibold text-emerald-800 text-center whitespace-nowrap">
+                    Verified
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* ===== Operational Directive ===== */}
+          <div className="mt-2.5 border-l-2 border-slate-700 pl-2.5 py-1 bg-slate-50/70">
+            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-800">
+              Operational Directive
+            </div>
+            <p className="text-[8.5px] text-slate-600 leading-tight mt-0.5">
+              Vendor Code <span className="font-mono font-bold text-slate-950">{sub.vendorCode}</span> is confidential and restricted to registered mobile <span className="font-mono font-semibold text-slate-800">{sub.phoneNumber}</span> for OTP authentication at the Field Gateway (<span className="font-mono">/gateway</span>). All installation milestone proofs require GPS geotagged imagery for automated verification and disbursement release.
             </p>
           </div>
-
-          {/* Scannable QR Code */}
-          {qrCodeDataUrl ? (
-            <div className="bg-white p-2 rounded-lg shrink-0 shadow-sm text-center">
-              <img
-                src={qrCodeDataUrl}
-                alt={`QR code for ${sub.vendorCode}`}
-                className="w-20 h-20 block rounded"
-              />
-              <span className="block text-[8px] font-mono font-bold text-slate-700 mt-1 uppercase tracking-tight">
-                Scan Gateway
-              </span>
-            </div>
-          ) : (
-            <div className="bg-white/10 border border-white/20 p-2.5 rounded-lg shrink-0 text-center w-24">
-              <div className="font-mono text-xs font-bold text-amber-400">/gateway</div>
-              <div className="text-[9px] text-slate-300 mt-1">OTP Mobile Access</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Grid: Company Details & Executive Profile */}
-      <div className="mt-5 grid grid-cols-2 gap-4">
-        {/* Left: Entity Profile */}
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200/80">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5 text-slate-600" />
-            <span>Registered Contractor Entity</span>
-          </div>
-          <div className="text-sm font-bold text-slate-950 mt-1.5">
-            {sub.companyName}
-          </div>
-          <div className="text-xs text-slate-600 mt-0.5">
-            Constitution: <span className="font-semibold text-slate-800">{kyc?.constitution || "Proprietorship Firm"}</span>
-          </div>
-          <div className="text-xs text-slate-600 mt-0.5 flex items-start gap-1">
-            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-            <span className="text-[11px] leading-relaxed text-slate-700">{address}</span>
-          </div>
         </div>
 
-        {/* Right: Key Executive & Contact */}
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200/80">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Authorized Key Executive</span>
-          </div>
-          <div className="text-sm font-bold text-slate-950 mt-1.5">
-            {kyc?.proprietor || sub.contactPerson}
-          </div>
-          <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
-            <Phone className="w-3 h-3 text-slate-400" />
-            <span className="font-mono font-semibold text-slate-800">{sub.phoneNumber}</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">OTP Gateway</span>
-          </div>
-          <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
-            <Mail className="w-3 h-3 text-slate-400" />
-            <span className="text-[11px] text-slate-700">{kyc?.email || "swarajya.construction1611@gmail.com"}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Statutory Regulatory & Tax Credentials */}
-      <div className="mt-5">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-1.5">
-          <Hash className="w-3.5 h-3.5 text-slate-500" />
-          <span>Statutory Tax &amp; Government Registrations</span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div className="p-3 rounded-lg border border-slate-200 bg-white shadow-2xs">
-            <div className="text-[10px] text-slate-500 uppercase font-semibold">GSTIN (Maharashtra - 27)</div>
-            <div className="font-mono font-extrabold text-sm text-slate-900 mt-1">
-              {kyc?.gstin || "27ENRPM7534P1ZV"}
-            </div>
-            <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-emerald-700 font-semibold">
-              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-              <span>Regular Taxpayer</span>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg border border-slate-200 bg-white shadow-2xs">
-            <div className="text-[10px] text-slate-500 uppercase font-semibold">MSME Udyam Registration</div>
-            <div className="font-mono font-extrabold text-sm text-slate-900 mt-1">
-              {kyc?.udyamRegistrationNumber || "UDYAM-MH-12-0015908"}
-            </div>
-            <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-700 font-semibold">
-              <CheckCircle2 className="w-3 h-3 text-blue-600" />
-              <span>Micro Enterprise</span>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg border border-slate-200 bg-white shadow-2xs">
-            <div className="text-[10px] text-slate-500 uppercase font-semibold">Income Tax PAN</div>
-            <div className="font-mono font-extrabold text-sm text-slate-900 mt-1">
-              {kyc?.pan || "ENRPM7534P"}
-            </div>
-            <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-slate-600 font-semibold">
-              <CheckCircle2 className="w-3 h-3 text-slate-500" />
-              <span>Aadhaar Seeded</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Disbursement Banking Details */}
-      <div className="mt-5">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-1.5">
-          <CreditCard className="w-3.5 h-3.5 text-slate-500" />
-          <span>Verified Settlement Disbursement Bank Account</span>
-        </div>
-
-        <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/70 flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-              <span>{bank.bankName || "HDFC Bank Ltd."}</span>
-              <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600">
-                {bank.accountType || "Current Account"}
-              </span>
-            </div>
-            <div className="font-mono text-xs text-slate-700 font-semibold">
-              Account No: <span className="text-slate-950 font-bold">{bank.accountNumber || "50200124368375"}</span>
-              <span className="mx-2 text-slate-300">•</span>
-              IFSC Code: <span className="text-slate-950 font-bold">{bank.ifscCode || "HDFC0001991"}</span>
-            </div>
-            <div className="text-[11px] text-slate-500">
-              Branch: {bank.branch || "Hingoli - Nawa Mondha, Plot No 8/163, Hingoli 431513"}
-            </div>
-          </div>
-
-          <div className="text-right shrink-0">
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-100/80 text-emerald-800 font-bold text-[10px]">
-              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-              <span>SETTLEMENT READY</span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Verified Documents Archive Grid */}
-      <div className="mt-5">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-1.5">
-          <FileText className="w-3.5 h-3.5 text-slate-500" />
-          <span>Statutory Compliance Proofs (Verified on Record)</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          {verifiedDocs.map((doc, idx) => (
-            <div
-              key={idx}
-              className="p-2.5 rounded-md border border-slate-200 bg-white flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600 shrink-0" />
-                <div>
-                  <div className="text-xs font-semibold text-slate-900 leading-tight">
-                    {doc.title}
-                  </div>
-                  <div className="text-[10px] font-mono text-slate-500">
-                    ID: {doc.identifier || "Verified"}
-                  </div>
+        {/* ===== Bottom Sign-off & Document Control Footer ===== */}
+        <div className="mt-2">
+          {/* Signature Block */}
+          <div className="grid grid-cols-2 gap-8">
+            <div>
+              <div className="border-t border-slate-400 pt-1">
+                <div className="text-[9.5px] font-semibold text-slate-900">System-Generated Record</div>
+                <div className="text-[8px] text-slate-500">
+                  Prepared by 369 AKR Universe Digital Compliance Engine
                 </div>
               </div>
-
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                VERIFIED
-              </span>
             </div>
-          ))}
-        </div>
-      </div>
+            <div>
+              <div className="border-t border-slate-400 pt-1 text-right">
+                <div className="text-[9.5px] font-semibold text-slate-900">Authorized Signatory</div>
+                <div className="text-[8px] text-slate-500">
+                  Directorate of Subcontractor Operations, 369 AKR Universe
+                </div>
+              </div>
+            </div>
+          </div>
 
-      {/* Security & Operational Guidelines */}
-      <div className="mt-5 p-3 rounded-lg bg-amber-50/50 border border-amber-200/70 text-[11px] text-amber-900">
-        <span className="font-bold uppercase tracking-wider text-[10px] text-amber-950 block mb-0.5">
-          Operational Directives:
-        </span>
-        Use Vendor Code <span className="font-mono font-bold text-slate-950">{sub.vendorCode}</span> at the Contractor Field Gateway (<span className="underline font-mono">/gateway</span>) with registered mobile OTP authentication. Upload all milestone proofs with GPS geotagging enabled for instant engineering verification and automated disbursement.
-      </div>
-
-      {/* Bottom Sign-off & Audit Seal */}
-      <div className="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between text-xs">
-        <div className="space-y-0.5">
-          <div className="font-bold text-slate-900 text-xs uppercase tracking-wide">
-            369 AKR Universe Solar EPC Pvt. Ltd.
+          {/* Document Control Footer */}
+          <div className="mt-2 pt-1.5 border-t border-slate-200 flex items-start justify-between">
+            <div className="text-[7px] text-slate-400 leading-tight max-w-[500px]">
+              This is an official system-generated compliance dossier. It is valid without physical seal and digitally authenticated by 369 AKR Universe Solar EPC Pvt. Ltd. Distribution restricted to internal audit, statutory compliance, and authorized contractor partner use.
+            </div>
+            <div className="text-[7px] text-slate-400 text-right font-mono shrink-0">
+              <div>Ref: {documentRef}</div>
+              <div>Generated: {generatedOn}, {generatedAt} IST</div>
+            </div>
           </div>
-          <div className="text-[10px] text-slate-500">
-            Directorate of Subcontractor Operations &amp; Quality Compliance
-          </div>
-          <div className="text-[9px] font-mono text-slate-400">
-            Certified on: {currentDate} | Secure Digital Verification Hash: SHA256-AKR-{sub.vendorCode}
-          </div>
-        </div>
-
-        <div className="text-right">
-          <div className="inline-block border-b border-slate-400 pb-1 px-4">
-            <span className="font-mono text-xs font-bold text-slate-800 tracking-wider">
-              [DIGITALLY AUTHORIZED]
-            </span>
-          </div>
-          <div className="text-[10px] text-slate-500 mt-1">Authorized Signatory</div>
         </div>
       </div>
     </div>

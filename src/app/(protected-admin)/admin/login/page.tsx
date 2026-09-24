@@ -25,8 +25,8 @@ function AdminLoginForm() {
   const redirectedFrom = searchParams.get("redirectedFrom") || "/admin";
   const initialError = searchParams.get("error");
 
-  const [email, setEmail] = useState("dispatcher@369akruniverse.in");
-  const [password, setPassword] = useState("Admin@369AKR!");
+  const [email, setEmail] = useState("superadmin");
+  const [password, setPassword] = useState("SuperAdmin@369!");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(
@@ -39,7 +39,7 @@ function AdminLoginForm() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) {
-      setError("Please enter both administrative email and password");
+      setError("Please enter both administrative username/email and password");
       return;
     }
 
@@ -55,6 +55,7 @@ function AdminLoginForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          username: email.trim().toLowerCase(),
           email: email.trim().toLowerCase(),
           password,
         }),
@@ -63,7 +64,7 @@ function AdminLoginForm() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setError(data.error || "Invalid administrative email or password.");
+        setError(data.error || "Invalid credentials.");
         setLoading(false);
         return;
       }
@@ -96,7 +97,7 @@ function AdminLoginForm() {
         </div>
 
         {/* Login Card */}
-        <div className="bg-white border border-slate-200 rounded-lg p-6 sm:p-8 shadow-xs">
+        <div className="bg-white border border-slate-200 rounded-lg p-6 sm:p-8 shadow-xs" suppressHydrationWarning>
           <div className="flex items-center gap-3 pb-4 border-b border-slate-200 mb-5">
             <div className="w-10 h-10 rounded-md bg-slate-900 text-white flex items-center justify-center shrink-0">
               <Shield className="w-5 h-5" />
@@ -128,20 +129,22 @@ function AdminLoginForm() {
           )}
 
           {/* Form */}
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4" suppressHydrationWarning>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Dispatcher Email Address
+              <label className="block text-xs font-semibold text-slate-700 mb-1" suppressHydrationWarning>
+                Administrator Username or Email
               </label>
               <div className="relative">
                 <input
-                  type="email"
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
                     setError(null);
                   }}
-                  placeholder="dispatcher@369akruniverse.in"
+                  placeholder="superadmin or dispatcher@369akruniverse.in"
                   className="w-full bg-white border border-slate-300 rounded px-3 py-2 pl-9 text-slate-900 text-xs placeholder:text-slate-400 focus:outline-none focus:border-slate-900 transition-colors"
                   required
                 />
@@ -198,17 +201,17 @@ function AdminLoginForm() {
           {/* Quick-Fill Staging Account for Evaluation */}
           <div className="mt-6 pt-5 border-t border-slate-100 text-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
-              Sample Dispatcher Account (Click to fill):
+              Seeded Identity Vault Account (Click to fill):
             </div>
 
             <button
               type="button"
-              onClick={() => handleQuickFill("dispatcher@369akruniverse.in", "Admin@369AKR!")}
+              onClick={() => handleQuickFill("superadmin", "SuperAdmin@369!")}
               className="w-full p-2.5 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left transition-colors flex items-center justify-between"
             >
               <div>
-                <span className="font-bold text-slate-900 block">dispatcher@369akruniverse.in</span>
-                <span className="text-[11px] text-slate-500">Central Dispatch Lead • Full Management Access</span>
+                <span className="font-bold text-slate-900 block">superadmin</span>
+                <span className="text-[11px] text-slate-500">SuperAdmin Lead • Full Identity Vault Access</span>
               </div>
               <span className="text-[10px] text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 font-semibold shrink-0">
                 Auto-Fill

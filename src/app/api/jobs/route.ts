@@ -23,7 +23,14 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.warn("[Get Jobs Supabase Fallback to Mock DB]", error.message);
+      console.error("[Get Jobs Supabase Error]", error);
+      if (process.env.NODE_ENV === "production") {
+        return NextResponse.json(
+          { success: false, error: "Database service unavailable. Unable to retrieve jobs." },
+          { status: 500 }
+        );
+      }
+      console.warn("[Get Jobs Supabase Fallback to Mock DB in development]", error.message);
       const mockJobs = subcontractorId
         ? db.getJobsBySubcontractor(subcontractorId)
         : db.getJobs();
@@ -72,7 +79,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, jobs });
   } catch (err: unknown) {
-    console.warn("[Get Jobs API Fallback to Mock DB]", err);
+    console.error("[Get Jobs API Error]", err);
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { success: false, error: "Internal Server Error. Failed to retrieve jobs." },
+        { status: 500 }
+      );
+    }
+    console.warn("[Get Jobs API Fallback to Mock DB in development]", err);
     const mockJobs = db.getJobs();
     return NextResponse.json({ success: true, jobs: mockJobs });
   }
@@ -95,6 +109,7 @@ export async function POST(req: NextRequest) {
 
     let supabase: any = null;
     let data: any = null;
+    let insertError: any = null;
 
     try {
       supabase = await createServerSupabaseClient();
@@ -122,14 +137,29 @@ export async function POST(req: NextRequest) {
         .select()
         .single();
 
-      if (!res.error && res.data) {
+      if (res.error) {
+        insertError = res.error;
+      } else if (res.data) {
         data = res.data;
       }
-    } catch (sbErr) {
-      console.warn("[Create Job Supabase Exception, falling back to mock DB]", sbErr);
+    } catch (sbErr: any) {
+      insertError = sbErr;
+      console.error("[Create Job Supabase Exception]", sbErr);
     }
 
     if (!data) {
+      if (process.env.NODE_ENV === "production") {
+        console.error("[Create Job Production Failure] Supabase insert failed:", insertError);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Database transaction failed. Job creation aborted to prevent data loss.",
+          },
+          { status: 500 }
+        );
+      }
+
+      console.warn("[Create Job Fallback to Mock DB in development]", insertError?.message || insertError);
       const newJob = db.createJob({
         title: jobFields.title,
         description: jobFields.description || "",

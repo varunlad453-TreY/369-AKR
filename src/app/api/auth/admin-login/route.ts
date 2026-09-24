@@ -1,109 +1,127 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import bcrypt from "bcryptjs";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+// Precomputed bcryptjs hash (12 rounds) for constant-time comparison when a username does not exist
+// This completely neutralizes timing side-channel attacks and prevents username enumeration.
+const DUMMY_BCRYPT_HASH = "$2b$12$ftooAlgDWp8Sjg7mgflAMeqecymU9OGUA1LjI6M0w3ry6SfPUp50K";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, password } = body;
+    const identifier = String(body.username || body.email || "").trim();
+    const cleanPassword = body.password ? String(body.password) : "";
 
-    if (!email || !password) {
+    // 1. Uniform validation: return generic 400 for missing credentials
+    if (!identifier || !cleanPassword) {
       return NextResponse.json(
-        { success: false, error: "Please provide both dispatcher email and password." },
+        { success: false, error: "Invalid credentials" },
         { status: 400 }
       );
     }
 
-    const cleanEmail = String(email).trim().toLowerCase();
-    const cleanPassword = String(password).trim();
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
     const userAgent = req.headers.get("user-agent") || "";
 
-    let adminRecord: any = null;
-    let supabase: any = null;
+    let adminRecord: {
+      id: string;
+      username: string;
+      password_hash: string;
+      role: string;
+      last_login?: string | null;
+      full_name?: string | null;
+    } | null = null;
 
+    let supabase: ReturnType<typeof createAdminClient> | null = null;
+
+    // 2. Query the system_admins table in the Supabase Identity Vault via privileged service role client
     try {
-      supabase = await createServerSupabaseClient();
+      supabase = createAdminClient();
       const { data, error: adminErr } = await supabase
-        .from("admins")
-        .select("*")
-        .eq("email", cleanEmail)
+        .from("system_admins")
+        .select("id, username, password_hash, role, last_login")
+        .ilike("username", identifier)
         .maybeSingle();
 
       if (!adminErr && data) {
         adminRecord = data;
       }
     } catch (sbErr) {
-      console.warn("[Admin Login API] Supabase query failed, engaging fallback:", sbErr);
+      console.warn("[Admin Login API] Identity vault query failed or timed out:", sbErr);
     }
 
-    // Fallback for authorized dispatchers if Supabase is offline or table is empty
-    const authorizedDispatchers = [
-      "dispatcher@369akruniverse.in",
-      "admin@369akruniverse.in",
-      "superadmin@369akruniverse.in",
-    ];
-
-    if (!adminRecord && authorizedDispatchers.includes(cleanEmail)) {
-      adminRecord = {
-        id: "admin-dispatcher-01",
-        email: cleanEmail,
-        full_name: "AKR Central Dispatcher",
-        role: "super_admin",
-      };
+    // Non-production fallback for offline local development and testing
+    if (!adminRecord && process.env.NODE_ENV !== "production") {
+      const cleanLower = identifier.toLowerCase();
+      if (
+        cleanLower === "superadmin" ||
+        cleanLower === "superadmin@369akruniverse.in" ||
+        cleanLower === "dispatcher@369akruniverse.in" ||
+        cleanLower === "admin@369akruniverse.in"
+      ) {
+        adminRecord = {
+          id: "a0000000-0000-0000-0000-000000000001",
+          username: cleanLower.includes("@") ? cleanLower.split("@")[0] : cleanLower,
+          password_hash: DUMMY_BCRYPT_HASH,
+          role: "super_admin",
+          last_login: null,
+          full_name: "SuperAdmin Lead",
+        };
+      }
     }
 
-    if (!adminRecord) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Access Denied: Your account is not registered as an authorized dispatcher.",
-        },
-        { status: 403 }
-      );
-    }
+    // 3. Constant-time cryptographic verification
+    // Even if adminRecord is null (user not found), compare against DUMMY_BCRYPT_HASH so that
+    // the operation consumes the exact same execution time (~100ms for 12 rounds), preventing timing side-channels.
+    const targetHash = adminRecord ? adminRecord.password_hash : DUMMY_BCRYPT_HASH;
+    const isPasswordValid = await bcrypt.compare(cleanPassword, targetHash);
+    const isAuthenticated = Boolean(adminRecord && isPasswordValid);
 
-    // 2. Validate Password against staging & master credentials
-    const validPasswords = [
-      "Admin@369AKR!",
-      "AKR-Admin-2026!",
-      "SuperAdmin@369!",
-      "Dispatcher@2026!",
-    ];
-
-    const isPasswordValid = validPasswords.includes(cleanPassword);
-
-    if (!isPasswordValid) {
-      // Record failed login attempt to audit logs
+    if (!isAuthenticated) {
+      // Record failed authentication attempt in immutable audit trail
       if (supabase) {
         try {
           await supabase.from("audit_logs").insert({
             action: "ADMIN_LOGIN_FAILED",
             actor_type: "ADMIN",
-            actor_identifier: cleanEmail,
+            actor_identifier: identifier,
             ip_address: ip,
             user_agent: userAgent,
-            metadata: { reason: "Invalid password supplied" },
+            metadata: { reason: "Invalid credentials supplied" },
           });
         } catch (logErr) {
           console.warn("[Admin Login API] Audit log warning:", logErr);
         }
       }
 
+      // Generic constant-time error response prevents username enumeration
       return NextResponse.json(
-        { success: false, error: "Invalid administrative password. Please check credentials." },
+        { success: false, error: "Invalid credentials" },
         { status: 401 }
       );
     }
 
-    // 3. Log successful admin login to audit trail
-    if (supabase) {
+    // 4. Update last_login timestamp in system_admins table upon successful authentication
+    if (supabase && adminRecord && adminRecord.id) {
+      try {
+        await supabase
+          .from("system_admins")
+          .update({ last_login: new Date().toISOString() })
+          .eq("id", adminRecord.id);
+      } catch (updateErr) {
+        console.warn("[Admin Login API] Unable to update last_login timestamp:", updateErr);
+      }
+    }
+
+    // 5. Log successful admin authentication in immutable audit trail
+    if (supabase && adminRecord) {
       try {
         await supabase.from("audit_logs").insert({
           action: "ADMIN_LOGIN_SUCCESS",
           actor_type: "ADMIN",
-          actor_identifier: cleanEmail,
+          actor_identifier: adminRecord.username,
           resource_id: adminRecord.id,
-          resource_type: "admins",
+          resource_type: "system_admins",
           ip_address: ip,
           user_agent: userAgent,
           metadata: {
@@ -116,30 +134,36 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. Create admin session payload and set secure cookie
+    // 6. Construct administrative session payload
+    const effectiveEmail = adminRecord!.username.includes("@")
+      ? adminRecord!.username
+      : `${adminRecord!.username}@369akruniverse.in`;
+
     const sessionPayload = {
-      id: adminRecord.id,
-      email: adminRecord.email,
-      role: adminRecord.role,
-      fullName: adminRecord.full_name,
+      id: adminRecord!.id,
+      username: adminRecord!.username,
+      email: effectiveEmail,
+      role: adminRecord!.role,
+      fullName: adminRecord!.full_name || (adminRecord!.role === "super_admin" ? "SuperAdmin Lead" : "Central Dispatcher"),
       timestamp: Date.now(),
     };
 
+    // 7. Secure hardened HTTP-only cookie configuration
     const response = NextResponse.json({
       success: true,
       admin: {
-        id: adminRecord.id,
-        email: adminRecord.email,
-        fullName: adminRecord.full_name,
-        role: adminRecord.role,
+        id: adminRecord!.id,
+        username: adminRecord!.username,
+        email: effectiveEmail,
+        role: adminRecord!.role,
       },
       redirectUrl: "/admin",
     });
 
     response.cookies.set("akr_admin_session", JSON.stringify(sessionPayload), {
-      httpOnly: false, // Accessible for client-side navbar/context
+      httpOnly: true, // Isolated from client-side JavaScript execution (XSS protection)
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "strict", // Immune to CSRF
       maxAge: 60 * 60 * 24, // 24 hours
       path: "/",
     });
@@ -148,7 +172,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error("[Admin Login API Exception]", err);
     return NextResponse.json(
-      { success: false, error: "Internal server error during dispatcher verification." },
+      { success: false, error: "Internal server error during administrative verification." },
       { status: 500 }
     );
   }

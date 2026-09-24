@@ -44,7 +44,7 @@ async function handlePortalAuth(request: NextRequest) {
     return redirectToGateway();
   }
 
-  if (!subId) {
+  if (!subId || typeof subId !== "string" || !subId.trim()) {
     return redirectToGateway();
   }
 
@@ -88,10 +88,10 @@ async function handlePortalAuth(request: NextRequest) {
     console.warn("[Middleware] Supabase subcontractor check skipped:", err);
   }
 
-  // Fallback to local store or valid subId
-  if (!isSubActive) {
+  // Fallback to local store strictly in development when Supabase is unreachable
+  if (!isSubActive && process.env.NODE_ENV !== "production") {
     const localSub = initialSubcontractors.find((s) => s.id === subId && s.isActive);
-    if (localSub || subId.startsWith("sub-")) {
+    if (localSub) {
       isSubActive = true;
     }
   }
@@ -127,7 +127,7 @@ async function handleAdminAuth(request: NextRequest) {
   if (adminCookie?.value) {
     try {
       const session = JSON.parse(adminCookie.value);
-      if (session?.email && (session.role === "super_admin" || session.role === "dispatcher")) {
+      if ((session?.email || session?.username) && (session.role === "super_admin" || session.role === "dispatcher")) {
         // Active verified admin session found
         return supabaseResponse;
       }

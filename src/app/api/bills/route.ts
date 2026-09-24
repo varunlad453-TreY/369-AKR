@@ -60,7 +60,14 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.warn("[Get Bills Supabase Fallback to Mock DB]", error.message);
+      console.error("[Get Bills Supabase Error]", error);
+      if (process.env.NODE_ENV === "production") {
+        return NextResponse.json(
+          { success: false, error: "Database service unavailable. Unable to retrieve bills." },
+          { status: 500 }
+        );
+      }
+      console.warn("[Get Bills Supabase Fallback to Mock DB in development]", error.message);
       const mockBills = db.getBills(
         subcontractorId || undefined,
         jobId || undefined,
@@ -156,7 +163,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, bills });
   } catch (err: unknown) {
-    console.warn("[Get Bills Error - Fallback to Mock DB]", err);
+    console.error("[Get Bills API Error]", err);
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { success: false, error: "Internal Server Error. Failed to retrieve bills." },
+        { status: 500 }
+      );
+    }
+    console.warn("[Get Bills - Fallback to Mock DB in development]", err);
     const { searchParams } = new URL(req.url);
     const subcontractorId = searchParams.get("subcontractorId");
     const jobId = searchParams.get("jobId");
@@ -276,7 +290,20 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      console.warn("[Supabase Insert Bill Fallback to Mock DB]", billError?.message);
+
+      // Fail fast in production: do NOT fall back to RAM DB to prevent silent financial data loss
+      if (process.env.NODE_ENV === "production") {
+        console.error("[Supabase Insert Bill Production Failure]", billError);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Database transaction failed. Invoice creation aborted to prevent financial data loss.",
+          },
+          { status: 500 }
+        );
+      }
+
+      console.warn("[Supabase Insert Bill Fallback to Mock DB in development]", billError?.message);
       const createdBill = db.createBill(
         {
           jobId,

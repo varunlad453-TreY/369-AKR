@@ -229,14 +229,25 @@ export async function POST(req: NextRequest) {
       "$1 $2 •••••"
     );
 
+    const sessionPayload: {
+      vendorCode: string;
+      maskedPhone: string;
+      expiresAt: string;
+      demoOtp?: string;
+    } = {
+      vendorCode: subcontractor.vendor_code,
+      maskedPhone,
+      expiresAt,
+    };
+
+    // demoOtp is strictly stripped in production to prevent leaking OTPs to the client
+    if (process.env.NODE_ENV !== "production") {
+      sessionPayload.demoOtp = otp;
+    }
+
     return NextResponse.json({
       success: true,
-      session: {
-        vendorCode: subcontractor.vendor_code,
-        maskedPhone,
-        expiresAt,
-        demoOtp: otp, // Exposed for development/evaluator friction-free verification
-      },
+      session: sessionPayload,
     });
   } catch (err: unknown) {
     console.error("[Vendor Login API Error]", err);

@@ -25,6 +25,12 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
     const userAgent = req.headers.get("user-agent") || "";
 
+    // Test bypass is strictly isolated to non-production environments with explicit flag
+    let isMasterBypass = false;
+    if (process.env.NODE_ENV !== "production" && process.env.ENABLE_TEST_BYPASS === "true") {
+      isMasterBypass = otp === "369369";
+    }
+
     let supabase: any = null;
     let subcontractor: any = null;
 
@@ -77,7 +83,7 @@ export async function POST(req: NextRequest) {
     const currentAttempts = subcontractor.otp_attempts ?? fallbackSession?.attempts ?? 0;
 
     // Check if session exists
-    if (!storedHash && !fallbackSession && otp !== "369369") {
+    if (!storedHash && !fallbackSession && !isMasterBypass) {
       return NextResponse.json(
         { success: false, error: "No active verification session. Please request a new OTP." },
         { status: 401 }
@@ -149,9 +155,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify OTP input (Supports SHA-256 match or Master Staging Bypass 369369)
+    // Verify OTP input (Supports SHA-256 match, fallback session, or test bypass in non-production)
     const inputHash = hashOtp(otp);
-    const isMasterBypass = otp === "369369";
     const isOtpValid = isMasterBypass || inputHash === storedHash || (fallbackSession && otp === fallbackSession.otp);
 
     if (!isOtpValid) {

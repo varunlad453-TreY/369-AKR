@@ -3,6 +3,70 @@ import autoTable from "jspdf-autotable";
 import { Bill } from "@/types";
 
 /**
+ * Computes GST tax breakdown according to Indian GST regulations.
+ * INTRA_STATE: CGST 9% + SGST 9% (Total 18%)
+ * INTER_STATE: IGST 18%
+ */
+export function calculateInvoiceTaxes(
+  subtotal: number,
+  taxType: "INTRA_STATE" | "INTER_STATE" = "INTRA_STATE"
+) {
+  const roundedSubtotal = Number(subtotal.toFixed(2));
+  let cgstRate = 0;
+  let cgstAmount = 0;
+  let sgstRate = 0;
+  let sgstAmount = 0;
+  let igstRate = 0;
+  let igstAmount = 0;
+
+  if (taxType === "INTRA_STATE") {
+    cgstRate = 9.0;
+    cgstAmount = Number((roundedSubtotal * 0.09).toFixed(2));
+    sgstRate = 9.0;
+    sgstAmount = Number((roundedSubtotal * 0.09).toFixed(2));
+  } else {
+    igstRate = 18.0;
+    igstAmount = Number((roundedSubtotal * 0.18).toFixed(2));
+  }
+
+  const grossTotal = Number((roundedSubtotal + cgstAmount + sgstAmount + igstAmount).toFixed(2));
+
+  return {
+    subtotal: roundedSubtotal,
+    cgstRate,
+    cgstAmount,
+    sgstRate,
+    sgstAmount,
+    igstRate,
+    igstAmount,
+    grossTotal,
+  };
+}
+
+/**
+ * Computes statutory contract deductions (Retention & TDS u/s 194C).
+ * Deductions are calculated on the taxable subtotal as per Indian EPC standards.
+ */
+export function calculateInvoiceDeductions(
+  subtotal: number,
+  grossTotal: number,
+  retentionPercentage: number = 0,
+  tdsPercentage: number = 0
+) {
+  const retentionAmount = Number(((subtotal * retentionPercentage) / 100).toFixed(2));
+  const tdsAmount = Number(((subtotal * tdsPercentage) / 100).toFixed(2));
+  const netPayable = Number((grossTotal - retentionAmount - tdsAmount).toFixed(2));
+
+  return {
+    retentionPercentage,
+    retentionAmount,
+    tdsPercentage,
+    tdsAmount,
+    netPayable,
+  };
+}
+
+/**
  * Converts a numeric amount into Indian Currency Words (Lakhs & Crores format)
  * e.g. 431200 -> "INR Four Lakh Thirty-One Thousand Two Hundred Only"
  */
@@ -28,7 +92,7 @@ export function numberToIndianWords(num: number): string {
     if (n < 10) return singleDigits[n];
     if (n < 20) return teens[n - 10];
     const unit = n % 10;
-    return `${tens[Math.floor(n / 10)]}${unit ? ` ${singleDigits[unit]}` : ""}`;
+    return `${tens[Math.floor(n / 10)]}${unit ? `-${singleDigits[unit]}` : ""}`.trim();
   }
 
   function convertThreeDigits(n: number): string {
@@ -41,7 +105,7 @@ export function numberToIndianWords(num: number): string {
     if (rest) {
       res += `${res ? " and " : ""}${convertTwoDigits(rest)}`;
     }
-    return res;
+    return res.trim();
   }
 
   const absolute = Math.abs(num);
@@ -57,7 +121,7 @@ export function numberToIndianWords(num: number): string {
   let words = "";
 
   if (crore) {
-    words += `${convertTwoDigits(crore)} Crore `;
+    words += `${crore >= 100 ? convertThreeDigits(crore) : convertTwoDigits(crore)} Crore `;
   }
   if (lakh) {
     words += `${convertTwoDigits(lakh)} Lakh `;
@@ -70,6 +134,11 @@ export function numberToIndianWords(num: number): string {
   }
 
   words = words.trim();
+
+  if (!words && integerPart === 0 && decimalPart > 0) {
+    words = "Zero";
+  }
+
   let result = `INR ${words}`;
 
   if (decimalPart > 0) {

@@ -1,4 +1,4 @@
-import { Job, Subcontractor, AuditLog, JobDocument, OtpVerificationSession } from "@/types";
+import { Job, Subcontractor, AuditLog, JobDocument, OtpVerificationSession, Bill, BillItem, BillStatus } from "@/types";
 import { generateSecureVendorCode } from "@/lib/utils";
 
 /**
@@ -9,6 +9,26 @@ import { generateSecureVendorCode } from "@/lib/utils";
 // Initial Seed Subcontractors
 export const initialSubcontractors: Subcontractor[] = [
   {
+    id: "sub-akr-1114-swarajya",
+    companyName: "Swarajya Construction and Developers",
+    contactPerson: "Yogesh Dnyaneshwar Magar",
+    phoneNumber: "+919552628232",
+    vendorCode: "AKR-1114",
+    licenseNumber: "MH-EPC-2023-15908",
+    stateRegion: "Maharashtra",
+    gstNumber: "27ENRPM7534P1ZV",
+    panNumber: "ENRPM7534P",
+    bankName: "HDFC Bank",
+    bankAccountNumber: "50200124368375",
+    bankIfsc: "HDFC0001991",
+    bankBranch: "Hingoli - Nawa Mondha, Plot No 8/163",
+    isActive: true,
+    rating: 5.0,
+    assignedJobsCount: 1,
+    completedJobsCount: 12,
+    createdAt: "2025-01-10T08:00:00Z",
+  },
+  {
     id: "sub-001-delhi-ncr",
     companyName: "SuryaShakti EPC Infrastructure Ltd.",
     contactPerson: "Rajesh Kumar Verma",
@@ -16,6 +36,12 @@ export const initialSubcontractors: Subcontractor[] = [
     vendorCode: "AKR-JOB-7K9M-SEC",
     licenseNumber: "DL-ELECT-2024-8842",
     stateRegion: "Haryana / Delhi NCR",
+    gstNumber: "06AABCS1429B1Z1",
+    panNumber: "AABCS1429B",
+    bankName: "HDFC Bank",
+    bankAccountNumber: "50200048192831",
+    bankIfsc: "HDFC0001234",
+    bankBranch: "Cyber City, Gurugram",
     isActive: true,
     rating: 4.95,
     assignedJobsCount: 2,
@@ -30,6 +56,12 @@ export const initialSubcontractors: Subcontractor[] = [
     vendorCode: "AKR-JOB-4X2P-SEC",
     licenseNumber: "RJ-SOLAR-2023-1192",
     stateRegion: "Rajasthan",
+    gstNumber: "08AABCT8812K1Z9",
+    panNumber: "AABCT8812K",
+    bankName: "State Bank of India",
+    bankAccountNumber: "389100234812",
+    bankIfsc: "SBIN0004128",
+    bankBranch: "MI Road, Jaipur",
     isActive: true,
     rating: 4.88,
     assignedJobsCount: 1,
@@ -44,6 +76,12 @@ export const initialSubcontractors: Subcontractor[] = [
     vendorCode: "AKR-JOB-9W1Z-SEC",
     licenseNumber: "UP-GRID-2024-4011",
     stateRegion: "Uttar Pradesh",
+    gstNumber: "09AABCA4321M1Z4",
+    panNumber: "AABCA4321M",
+    bankName: "ICICI Bank",
+    bankAccountNumber: "001205018492",
+    bankIfsc: "ICIC0000012",
+    bankBranch: "Sector 18, Noida",
     isActive: true,
     rating: 4.75,
     assignedJobsCount: 1,
@@ -129,6 +167,9 @@ export const initialJobs: Job[] = [
     createdBy: "admin-dispatcher-01",
     scheduledStart: "2026-03-10T08:00:00Z",
     scheduledEnd: "2026-03-25T18:00:00Z",
+    workOrderNo: "WO/AKR/2026/042",
+    workOrderDate: "2026-02-15",
+    contractAmount: 1850000,
     notes: "Strict safety compliance: Earthing tests and lightning arrestors must be verified prior to energization.",
     createdAt: "2026-03-01T09:00:00Z",
     updatedAt: "2026-03-10T14:20:00Z",
@@ -153,6 +194,9 @@ export const initialJobs: Job[] = [
     createdBy: "admin-dispatcher-01",
     scheduledStart: "2026-03-15T07:30:00Z",
     scheduledEnd: "2026-04-10T18:00:00Z",
+    workOrderNo: "WO/AKR/2026/088",
+    workOrderDate: "2026-02-28",
+    contractAmount: 4500000,
     notes: "Civil piling work complete. Subcontractor team must execute torque-tube alignment and string wiring.",
     createdAt: "2026-03-04T12:00:00Z",
     updatedAt: "2026-03-04T12:00:00Z",
@@ -177,6 +221,9 @@ export const initialJobs: Job[] = [
     createdBy: "admin-dispatcher-01",
     scheduledStart: "2026-03-08T09:00:00Z",
     scheduledEnd: "2026-03-20T17:00:00Z",
+    workOrderNo: "WO/AKR/2026/104",
+    workOrderDate: "2026-03-01",
+    contractAmount: 1420000,
     notes: "Night hours crane access permit issued. Structural torque inspections mandatory for structural steel clamps.",
     createdAt: "2026-03-02T10:00:00Z",
     updatedAt: "2026-03-09T08:30:00Z",
@@ -201,9 +248,149 @@ export const initialJobs: Job[] = [
     createdBy: "admin-dispatcher-01",
     scheduledStart: "2026-03-18T08:00:00Z",
     scheduledEnd: "2026-04-05T19:00:00Z",
+    workOrderNo: "WO/AKR/2026/119",
+    workOrderDate: "2026-03-04",
+    contractAmount: 3600000,
     notes: "Security clearances required for all field personnel. Background check forms filed with building security.",
     createdAt: "2026-03-05T11:45:00Z",
     updatedAt: "2026-03-05T11:45:00Z",
+  },
+  {
+    id: "job-akr-hingoli-05",
+    jobCode: "AKR-2026-MAH-055",
+    title: "Hingoli Agro-Industrial 350 kWp Commercial Solar Rooftop",
+    description: "Full turnkey installation of 350 kWp Tier-1 bifacial monocrystalline solar modules with string inverters, walking pathways, and grid export substation connection.",
+    siteAddress: "Plot 12, Malharwadi Industrial Area, Hingoli",
+    city: "Hingoli",
+    state: "Maharashtra",
+    pincode: "431513",
+    gpsCoordinates: {
+      lat: 19.5146,
+      lng: 76.8681,
+    },
+    capacityKwp: 350,
+    systemType: "Industrial Rooftop Bifacial",
+    status: "in_progress",
+    subcontractorId: "sub-akr-1114-swarajya",
+    createdBy: "admin-dispatcher-01",
+    scheduledStart: "2026-03-10T08:00:00Z",
+    scheduledEnd: "2026-03-30T18:00:00Z",
+    workOrderNo: "WO/AKR/2026/055",
+    workOrderDate: "2026-02-20",
+    contractAmount: 1550000,
+    notes: "Strict safety compliance: Earthing tests and lightning arrestors must be verified prior to energization.",
+    createdAt: "2026-03-01T09:00:00Z",
+    updatedAt: "2026-03-10T14:20:00Z",
+  },
+];
+
+// Initial Seed Bill Items
+export const initialBillItems: BillItem[] = [
+  {
+    id: "item-001",
+    billId: "bill-seed-001",
+    itemCode: "CIVIL-01",
+    description: "Module Mounting Structure (MMS) Installation & Alignment with Torque Verification",
+    hsnSac: "995465",
+    uom: "kWp",
+    quantity: 450,
+    rate: 250,
+    amount: 112500,
+  },
+  {
+    id: "item-002",
+    billId: "bill-seed-001",
+    itemCode: "ELEC-01",
+    description: "Tier-1 Bifacial PV Module Placement, Clamping & String Interconnection",
+    hsnSac: "995465",
+    uom: "kWp",
+    quantity: 450,
+    rate: 350,
+    amount: 157500,
+  },
+  {
+    id: "item-003",
+    billId: "bill-seed-001",
+    itemCode: "CABLE-01",
+    description: "DC Solar String Cabling, UV Conduit Laying & Inverter Termination",
+    hsnSac: "995461",
+    uom: "LS",
+    quantity: 1,
+    rate: 80000,
+    amount: 80000,
+  },
+  {
+    id: "item-004",
+    billId: "bill-seed-002",
+    itemCode: "FOUND-01",
+    description: "Civil Ramming / Piling & Single-Axis Solar Tracker Erection",
+    hsnSac: "995465",
+    uom: "kWp",
+    quantity: 1200,
+    rate: 300,
+    amount: 360000,
+  },
+  {
+    id: "item-005",
+    billId: "bill-seed-002",
+    itemCode: "TRENCH-01",
+    description: "High-Voltage Underground DC Cable Trenching, Sand Cushioning & Brick Covering",
+    hsnSac: "995461",
+    uom: "MTR",
+    quantity: 1200,
+    rate: 150,
+    amount: 180000,
+  },
+];
+
+// Initial Seed Bills
+export const initialBills: Bill[] = [
+  {
+    id: "bill-seed-001",
+    jobId: "job-akr-rohtak-01",
+    subcontractorId: "sub-001-delhi-ncr",
+    invoiceNo: "SS/2026/RA-01",
+    invoiceDate: "2026-03-12",
+    status: "submitted",
+    subtotal: 350000,
+    cgstRate: 9.0,
+    cgstAmount: 31500,
+    sgstRate: 9.0,
+    sgstAmount: 31500,
+    igstRate: 0.0,
+    igstAmount: 0,
+    grossTotal: 413000,
+    retentionPercentage: 0.0,
+    retentionAmount: 0,
+    tdsPercentage: 0.0,
+    tdsAmount: 0,
+    netPayable: 413000,
+    notes: "RA Bill 01 for 450 kWp Rohtak agro-industrial rooftop project.",
+    createdAt: "2026-03-12T10:30:00Z",
+  },
+  {
+    id: "bill-seed-002",
+    jobId: "job-akr-jaipur-02",
+    subcontractorId: "sub-002-rajasthan",
+    invoiceNo: "THAR/RA/2026/01",
+    invoiceDate: "2026-03-10",
+    status: "approved",
+    subtotal: 540000,
+    cgstRate: 9.0,
+    cgstAmount: 48600,
+    sgstRate: 9.0,
+    sgstAmount: 48600,
+    igstRate: 0.0,
+    igstAmount: 0,
+    grossTotal: 637200,
+    retentionPercentage: 5.0,
+    retentionAmount: 27000,
+    tdsPercentage: 2.0,
+    tdsAmount: 10800,
+    netPayable: 599400,
+    notes: "Approved by Finance with 5% Performance Retention and 2% Sec 194C TDS.",
+    createdAt: "2026-03-10T14:15:00Z",
+    updatedAt: "2026-03-11T16:00:00Z",
   },
 ];
 
@@ -273,6 +460,8 @@ class DatabaseManager {
   private jobs: Job[] = [...initialJobs];
   private documents: JobDocument[] = [...initialDocuments];
   private auditLogs: AuditLog[] = [...initialAuditLogs];
+  private bills: Bill[] = [...initialBills];
+  private billItems: BillItem[] = [...initialBillItems];
   private otpSessions: Map<string, { otp: string; expiresAt: number; attempts: number }> = new Map();
   private rateLimits: Map<string, { count: number; windowStart: number }> = new Map();
 
@@ -317,6 +506,11 @@ class DatabaseManager {
     return this.subcontractors.find(
       (s) => s.vendorCode.toUpperCase() === cleanCode && s.isActive
     );
+  }
+
+  // Find Subcontractor by ID
+  public getSubcontractorById(id: string): Subcontractor | undefined {
+    return this.subcontractors.find((s) => s.id === id);
   }
 
   // Request OTP for Vendor Code
@@ -636,6 +830,141 @@ class DatabaseManager {
     });
 
     return newCode;
+  }
+
+  // Statutory Profile update
+  public updateSubcontractorProfile(
+    subcontractorId: string,
+    profile: {
+      gstNumber?: string;
+      panNumber?: string;
+      bankName?: string;
+      bankAccountNumber?: string;
+      bankIfsc?: string;
+      bankBranch?: string;
+    }
+  ): Subcontractor | undefined {
+    const sub = this.subcontractors.find((s) => s.id === subcontractorId);
+    if (!sub) return undefined;
+
+    if (profile.gstNumber !== undefined) sub.gstNumber = profile.gstNumber;
+    if (profile.panNumber !== undefined) sub.panNumber = profile.panNumber;
+    if (profile.bankName !== undefined) sub.bankName = profile.bankName;
+    if (profile.bankAccountNumber !== undefined) sub.bankAccountNumber = profile.bankAccountNumber;
+    if (profile.bankIfsc !== undefined) sub.bankIfsc = profile.bankIfsc;
+    if (profile.bankBranch !== undefined) sub.bankBranch = profile.bankBranch;
+    sub.updatedAt = new Date().toISOString();
+
+    this.log({
+      action: "SUBCONTRACTOR_PROFILE_UPDATED",
+      actorType: "SUBCONTRACTOR",
+      actorIdentifier: sub.phoneNumber,
+      resourceId: sub.id,
+      resourceType: "subcontractors",
+      metadata: profile,
+    });
+
+    return sub;
+  }
+
+  // Bills & Line Items
+  public getBills(subcontractorId?: string, jobId?: string, status?: string): Bill[] {
+    let filtered = this.bills;
+    if (subcontractorId) {
+      filtered = filtered.filter((b) => b.subcontractorId === subcontractorId);
+    }
+    if (jobId) {
+      filtered = filtered.filter((b) => b.jobId === jobId);
+    }
+    if (status && status !== "ALL") {
+      filtered = filtered.filter((b) => b.status === status);
+    }
+
+    return filtered.map((b) => ({
+      ...b,
+      job: this.jobs.find((j) => j.id === b.jobId),
+      subcontractor: this.subcontractors.find((s) => s.id === b.subcontractorId),
+      items: this.billItems.filter((it) => it.billId === b.id),
+    }));
+  }
+
+  public getBillById(billId: string): Bill | undefined {
+    const b = this.bills.find((b) => b.id === billId);
+    if (!b) return undefined;
+    return {
+      ...b,
+      job: this.jobs.find((j) => j.id === b.jobId),
+      subcontractor: this.subcontractors.find((s) => s.id === b.subcontractorId),
+      items: this.billItems.filter((it) => it.billId === b.id),
+    };
+  }
+
+  public createBill(
+    billData: Omit<Bill, "id" | "createdAt" | "updatedAt" | "job" | "subcontractor" | "items">,
+    items: Omit<BillItem, "id" | "billId">[]
+  ): Bill {
+    const newBillId = `bill-${Date.now()}`;
+    const newBill: Bill = {
+      ...billData,
+      id: newBillId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const newItems: BillItem[] = items.map((it, idx) => ({
+      ...it,
+      id: `item-${Date.now()}-${idx}`,
+      billId: newBillId,
+    }));
+
+    this.bills.unshift(newBill);
+    this.billItems.push(...newItems);
+
+    this.log({
+      action: "BILL_SUBMITTED",
+      actorType: "SUBCONTRACTOR",
+      actorIdentifier: billData.subcontractorId,
+      resourceId: newBillId,
+      resourceType: "bills",
+      metadata: {
+        invoiceNo: newBill.invoiceNo,
+        subtotal: newBill.subtotal,
+        grossTotal: newBill.grossTotal,
+        itemCount: items.length,
+      },
+    });
+
+    return {
+      ...newBill,
+      job: this.jobs.find((j) => j.id === newBill.jobId),
+      subcontractor: this.subcontractors.find((s) => s.id === newBill.subcontractorId),
+      items: newItems,
+    };
+  }
+
+  public updateBill(billId: string, updates: Partial<Bill>): Bill | undefined {
+    const bill = this.bills.find((b) => b.id === billId);
+    if (!bill) return undefined;
+
+    const oldStatus = bill.status;
+    Object.assign(bill, updates, { updatedAt: new Date().toISOString() });
+
+    this.log({
+      action: updates.status && updates.status !== oldStatus ? "BILL_STATUS_UPDATED" : "BILL_UPDATED",
+      actorType: "ADMIN",
+      actorIdentifier: "dispatcher@369akruniverse.in",
+      resourceId: bill.id,
+      resourceType: "bills",
+      metadata: {
+        oldStatus,
+        newStatus: bill.status,
+        netPayable: bill.netPayable,
+        tdsAmount: bill.tdsAmount,
+        retentionAmount: bill.retentionAmount,
+      },
+    });
+
+    return this.getBillById(billId);
   }
 
   // Audit Logs

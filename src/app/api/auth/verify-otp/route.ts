@@ -6,6 +6,7 @@ import {
   getFallbackOtpSession,
   deleteFallbackOtpSession,
 } from "@/lib/auth/otp-store";
+import { db } from "@/lib/state/mock-db";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,18 +25,45 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
     const userAgent = req.headers.get("user-agent") || "";
 
-    const supabase = await createServerSupabaseClient();
+    let supabase: any = null;
+    let subcontractor: any = null;
 
-    // 1. Query live Subcontractor record
-    const { data: subcontractor, error: subError } = await supabase
-      .from("subcontractors")
-      .select("*")
-      .eq("vendor_code", cleanVendorCode)
-      .eq("is_active", true)
-      .maybeSingle();
+    try {
+      supabase = await createServerSupabaseClient();
+      const { data: subData, error: subError } = await supabase
+        .from("subcontractors")
+        .select("*")
+        .eq("vendor_code", cleanVendorCode)
+        .eq("is_active", true)
+        .maybeSingle();
 
-    if (subError || !subcontractor) {
-      console.error("[Verify OTP] Subcontractor not found or query error:", subError);
+      if (!subError && subData) {
+        subcontractor = subData;
+      }
+    } catch (sbErr: any) {
+      console.warn("[Verify OTP] Supabase query error, checking fallback:", sbErr?.message || sbErr);
+    }
+
+    // Fallback to in-memory store
+    if (!subcontractor) {
+      const mockSub = db.getSubcontractorByVendorCode(cleanVendorCode);
+      if (mockSub) {
+        subcontractor = {
+          id: mockSub.id,
+          company_name: mockSub.companyName,
+          phone_number: mockSub.phoneNumber,
+          vendor_code: mockSub.vendorCode,
+          contact_person: mockSub.contactPerson,
+          license_number: mockSub.licenseNumber,
+          state_region: mockSub.stateRegion,
+          is_active: mockSub.isActive,
+          rating: mockSub.rating,
+          created_at: mockSub.createdAt,
+        };
+      }
+    }
+
+    if (!subcontractor) {
       return NextResponse.json(
         { success: false, error: "Subcontractor not found or inactive." },
         { status: 401 }
@@ -58,12 +86,15 @@ export async function POST(req: NextRequest) {
 
     // Check expiration
     if (expiresAtRaw && new Date(expiresAtRaw).getTime() < Date.now()) {
-      // Clean up expired session
-      await supabase.from("subcontractors").update({
-        otp_hash: null,
-        otp_expires_at: null,
-        otp_attempts: 0,
-      }).eq("id", subcontractor.id);
+      if (supabase) {
+        try {
+          await supabase.from("subcontractors").update({
+            otp_hash: null,
+            otp_expires_at: null,
+            otp_attempts: 0,
+          }).eq("id", subcontractor.id);
+        } catch (_) {}
+      }
       deleteFallbackOtpSession(cleanVendorCode);
 
       return NextResponse.json(
@@ -75,27 +106,42 @@ export async function POST(req: NextRequest) {
     // Increment attempt counter
     const newAttempts = currentAttempts + 1;
     if (newAttempts > 3) {
-      // Exceeded max attempts: invalidate session
-      await supabase.from("subcontractors").update({
-        otp_hash: null,
-        otp_expires_at: null,
-        otp_attempts: 0,
-      }).eq("id", subcontractor.id);
+      if (supabase) {
+        try {
+          await supabase.from("subcontractors").update({
+            otp_hash: null,
+            otp_expires_at: null,
+            otp_attempts: 0,
+          }).eq("id", subcontractor.id);
+        } catch (_) {}
+      }
       deleteFallbackOtpSession(cleanVendorCode);
 
-      try {
-        await supabase.from("audit_logs").insert({
-          action: "OTP_MAX_ATTEMPTS_EXCEEDED",
-          actor_type: "SUBCONTRACTOR",
-          actor_identifier: subcontractor.phone_number,
-          resource_id: subcontractor.id,
-          resource_type: "subcontractors",
-          ip_address: ip,
-          user_agent: userAgent,
-        });
-      } catch (logErr) {
-        console.warn("[Verify OTP] Max attempts audit log warning:", logErr);
+      if (supabase) {
+        try {
+          await supabase.from("audit_logs").insert({
+            action: "OTP_MAX_ATTEMPTS_EXCEEDED",
+            actor_type: "SUBCONTRACTOR",
+            actor_identifier: subcontractor.phone_number,
+            resource_id: subcontractor.id,
+            resource_type: "subcontractors",
+            ip_address: ip,
+            user_agent: userAgent,
+          });
+        } catch (logErr) {
+          console.warn("[Verify OTP] Max attempts audit log warning:", logErr);
+        }
       }
+
+      db.log({
+        action: "OTP_MAX_ATTEMPTS_EXCEEDED",
+        actorType: "SUBCONTRACTOR",
+        actorIdentifier: subcontractor.phone_number,
+        resourceId: subcontractor.id,
+        resourceType: "subcontractors",
+        ipAddress: ip,
+        userAgent: userAgent,
+      });
 
       return NextResponse.json(
         { success: false, error: "Maximum attempts exceeded. Please restart verification." },
@@ -109,29 +155,45 @@ export async function POST(req: NextRequest) {
     const isOtpValid = isMasterBypass || inputHash === storedHash || (fallbackSession && otp === fallbackSession.otp);
 
     if (!isOtpValid) {
-      // Persist incremented attempts
-      await supabase.from("subcontractors").update({
-        otp_attempts: newAttempts,
-      }).eq("id", subcontractor.id);
+      if (supabase) {
+        try {
+          await supabase.from("subcontractors").update({
+            otp_attempts: newAttempts,
+          }).eq("id", subcontractor.id);
+        } catch (_) {}
+      }
 
       if (fallbackSession) {
         fallbackSession.attempts = newAttempts;
       }
 
-      try {
-        await supabase.from("audit_logs").insert({
-          action: "OTP_VERIFIED_FAILED",
-          actor_type: "SUBCONTRACTOR",
-          actor_identifier: subcontractor.phone_number,
-          resource_id: subcontractor.id,
-          resource_type: "subcontractors",
-          ip_address: ip,
-          user_agent: userAgent,
-          metadata: { attemptNumber: newAttempts },
-        });
-      } catch (logErr) {
-        console.warn("[Verify OTP] Failed attempt audit log warning:", logErr);
+      if (supabase) {
+        try {
+          await supabase.from("audit_logs").insert({
+            action: "OTP_VERIFIED_FAILED",
+            actor_type: "SUBCONTRACTOR",
+            actor_identifier: subcontractor.phone_number,
+            resource_id: subcontractor.id,
+            resource_type: "subcontractors",
+            ip_address: ip,
+            user_agent: userAgent,
+            metadata: { attemptNumber: newAttempts },
+          });
+        } catch (logErr) {
+          console.warn("[Verify OTP] Failed attempt audit log warning:", logErr);
+        }
       }
+
+      db.log({
+        action: "OTP_VERIFIED_FAILED",
+        actorType: "SUBCONTRACTOR",
+        actorIdentifier: subcontractor.phone_number,
+        resourceId: subcontractor.id,
+        resourceType: "subcontractors",
+        ipAddress: ip,
+        userAgent: userAgent,
+        metadata: { attemptNumber: newAttempts },
+      });
 
       return NextResponse.json(
         { success: false, error: `Invalid verification code. ${Math.max(0, 3 - newAttempts)} attempts remaining.` },
@@ -140,31 +202,51 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Successful Verification: Clear OTP state
-    await supabase.from("subcontractors").update({
-      otp_hash: null,
-      otp_expires_at: null,
-      otp_attempts: 0,
-    }).eq("id", subcontractor.id);
+    if (supabase) {
+      try {
+        await supabase.from("subcontractors").update({
+          otp_hash: null,
+          otp_expires_at: null,
+          otp_attempts: 0,
+        }).eq("id", subcontractor.id);
+      } catch (_) {}
+    }
     deleteFallbackOtpSession(cleanVendorCode);
 
     // Record immutable audit log
-    try {
-      await supabase.from("audit_logs").insert({
-        action: "OTP_VERIFIED_SUCCESS",
-        actor_type: "SUBCONTRACTOR",
-        actor_identifier: subcontractor.phone_number,
-        resource_id: subcontractor.id,
-        resource_type: "subcontractors",
-        ip_address: ip,
-        user_agent: userAgent,
-        metadata: {
-          loginTime: new Date().toISOString(),
-          isBypass: isMasterBypass,
-        },
-      });
-    } catch (logErr) {
-      console.warn("[Verify OTP] Success audit log warning:", logErr);
+    if (supabase) {
+      try {
+        await supabase.from("audit_logs").insert({
+          action: "OTP_VERIFIED_SUCCESS",
+          actor_type: "SUBCONTRACTOR",
+          actor_identifier: subcontractor.phone_number,
+          resource_id: subcontractor.id,
+          resource_type: "subcontractors",
+          ip_address: ip,
+          user_agent: userAgent,
+          metadata: {
+            loginTime: new Date().toISOString(),
+            isBypass: isMasterBypass,
+          },
+        });
+      } catch (logErr) {
+        console.warn("[Verify OTP] Success audit log warning:", logErr);
+      }
     }
+
+    db.log({
+      action: "OTP_VERIFIED_SUCCESS",
+      actorType: "SUBCONTRACTOR",
+      actorIdentifier: subcontractor.phone_number,
+      resourceId: subcontractor.id,
+      resourceType: "subcontractors",
+      ipAddress: ip,
+      userAgent: userAgent,
+      metadata: {
+        loginTime: new Date().toISOString(),
+        isBypass: isMasterBypass,
+      },
+    });
 
     // 4. Construct sanitized response & set auth cookie
     const subProfile = {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { db } from "@/lib/state/mock-db";
 
 interface Context {
   params: Promise<{ jobId: string }>;
@@ -8,15 +9,59 @@ interface Context {
 export async function GET(req: NextRequest, { params }: Context) {
   try {
     const { jobId } = await params;
-    const supabase = await createServerSupabaseClient();
+    let jobRow: any = null;
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId);
+    try {
+      const supabase = await createServerSupabaseClient();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId);
+      const res = isUuid
+        ? await supabase.from("jobs").select("*, subcontractors(*), job_documents(*)").eq("id", jobId).maybeSingle()
+        : await supabase.from("jobs").select("*, subcontractors(*), job_documents(*)").or(`job_code.eq.${jobId},id.eq.${jobId}`).maybeSingle();
+      jobRow = res.data;
+    } catch {}
 
-    const { data: jobRow, error: jobError } = isUuid
-      ? await supabase.from("jobs").select("*, subcontractors(*), job_documents(*)").eq("id", jobId).maybeSingle()
-      : await supabase.from("jobs").select("*, subcontractors(*), job_documents(*)").or(`job_code.eq.${jobId},id.eq.${jobId}`).maybeSingle();
+    if (!jobRow) {
+      const mock = db.getJobs().find((j) => j.id === jobId || j.jobCode === jobId);
+      if (mock) {
+        jobRow = {
+          id: mock.id,
+          job_code: mock.jobCode,
+          title: mock.title,
+          description: mock.description,
+          site_address: mock.siteAddress,
+          city: mock.city,
+          state: mock.state,
+          pincode: mock.pincode,
+          gps_lat: mock.gpsCoordinates?.lat || null,
+          gps_lng: mock.gpsCoordinates?.lng || null,
+          capacity_kwp: mock.capacityKwp,
+          system_type: mock.systemType,
+          status: mock.status,
+          subcontractor_id: mock.subcontractorId,
+          subcontractors: mock.subcontractor ? {
+            id: mock.subcontractor.id,
+            company_name: mock.subcontractor.companyName,
+            contact_person: mock.subcontractor.contactPerson,
+            phone_number: mock.subcontractor.phoneNumber,
+            license_number: mock.subcontractor.licenseNumber,
+            vendor_code: mock.subcontractor.vendorCode,
+            state_region: mock.subcontractor.stateRegion,
+          } : null,
+          job_documents: (mock.documents || []).map((d) => ({
+            id: d.id,
+            document_type: d.documentType,
+            file_name: d.fileName,
+            download_url: d.downloadUrl,
+            created_at: d.createdAt,
+            geotag: d.geotag,
+          })),
+          scheduled_start: mock.scheduledStart,
+          completed_at: mock.completedAt,
+        };
+      }
+    }
 
-    if (jobError || !jobRow) {
+    if (!jobRow) {
       return NextResponse.json({ success: false, error: "Job not found" }, { status: 404 });
     }
 
@@ -387,70 +432,95 @@ export async function GET(req: NextRequest, { params }: Context) {
 export async function POST(req: NextRequest, { params }: Context) {
   try {
     const { jobId } = await params;
-    const supabase = await createServerSupabaseClient();
+    try {
+      const supabase = await createServerSupabaseClient();
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId);
 
-    const { data: jobRow, error: jobError } = isUuid
-      ? await supabase.from("jobs").select("*, subcontractors(*)").eq("id", jobId).maybeSingle()
-      : await supabase.from("jobs").select("*, subcontractors(*)").or(`job_code.eq.${jobId},id.eq.${jobId}`).maybeSingle();
+      const { data: jobRow, error: jobError } = isUuid
+        ? await supabase.from("jobs").select("*, subcontractors(*)").eq("id", jobId).maybeSingle()
+        : await supabase.from("jobs").select("*, subcontractors(*)").or(`job_code.eq.${jobId},id.eq.${jobId}`).maybeSingle();
 
-    if (jobError || !jobRow) {
-      return NextResponse.json({ success: false, error: "Job not found" }, { status: 404 });
-    }
+      if (jobError || !jobRow) {
+        throw new Error("Job not found in Supabase");
+      }
 
-    const targetJobId = jobRow.id;
-    const reportFileName = `DISCOM_COMMISSIONING_REPORT_${jobRow.job_code}.pdf`;
-    const storagePath = `commissioning-reports/${targetJobId}/${Date.now()}_${reportFileName}`;
-    const subRecord = jobRow.subcontractors as Record<string, unknown> | null;
+      const targetJobId = jobRow.id;
+      const reportFileName = `DISCOM_COMMISSIONING_REPORT_${jobRow.job_code}.pdf`;
+      const storagePath = `commissioning-reports/${targetJobId}/${Date.now()}_${reportFileName}`;
+      const subRecord = jobRow.subcontractors as Record<string, unknown> | null;
 
-    // Add commissioning report document into Supabase Storage / job_documents table
-    const { data: newDoc, error: docError } = await supabase
-      .from("job_documents")
-      .insert({
-        job_id: targetJobId,
-        document_type: "commissioning_report",
-        file_name: reportFileName,
-        file_size: 1850000,
-        mime_type: "application/pdf",
-        storage_path: storagePath,
-        download_url: `/api/jobs/${targetJobId}/commissioning-report`,
-        uploaded_by: "system-discom-generator",
-        uploader_role: "ADMIN",
-        geotag: (jobRow.gps_lat && jobRow.gps_lng) ? {
-          latitude: jobRow.gps_lat,
-          longitude: jobRow.gps_lng,
+      const { data: newDoc, error: docError } = await supabase
+        .from("job_documents")
+        .insert({
+          job_id: targetJobId,
+          document_type: "commissioning_report",
+          file_name: reportFileName,
+          file_size: 1850000,
+          mime_type: "application/pdf",
+          storage_path: storagePath,
+          download_url: `/api/jobs/${targetJobId}/commissioning-report`,
+          uploaded_by: "system-discom-generator",
+          uploader_role: "ADMIN",
+          geotag: (jobRow.gps_lat && jobRow.gps_lng) ? {
+            latitude: jobRow.gps_lat,
+            longitude: jobRow.gps_lng,
+            accuracy: 3.5,
+            timestamp: new Date().toISOString(),
+          } : null,
+          metadata: {
+            discomAuthority: `${jobRow.state} State Electricity Board`,
+            systemCapacityKwp: jobRow.capacity_kwp,
+            verifiedSubcontractor: subRecord?.company_name,
+          },
+        })
+        .select()
+        .single();
+
+      if (docError || !newDoc) {
+        throw new Error(docError?.message || "Failed to create report document");
+      }
+
+      try {
+        await supabase.from("audit_logs").insert({
+          action: "COMMISSIONING_REPORT_GENERATED",
+          actor_type: "SYSTEM",
+          actor_identifier: "discom-engine@369akruniverse.in",
+          resource_id: targetJobId,
+          resource_type: "job_documents",
+          metadata: { jobCode: jobRow.job_code, documentId: newDoc.id },
+        });
+      } catch (logErr) {
+        console.warn("[Commissioning Report] Audit log warning:", logErr);
+      }
+
+      return NextResponse.json({ success: true, document: newDoc }, { status: 201 });
+    } catch (supaErr) {
+      console.warn("[Commissioning Report Fallback to Mock DB]", supaErr);
+      const mockJob = db.getJobs().find((j) => j.id === jobId || j.jobCode === jobId);
+      if (!mockJob) {
+        return NextResponse.json({ success: false, error: "Job not found" }, { status: 404 });
+      }
+      const reportFileName = `DISCOM_COMMISSIONING_REPORT_${mockJob.jobCode}.pdf`;
+      const doc = db.addDocument({
+        jobId: mockJob.id,
+        documentType: "commissioning_report",
+        fileName: reportFileName,
+        fileSize: 1850000,
+        mimeType: "application/pdf",
+        storagePath: `commissioning-reports/${mockJob.id}/${Date.now()}_${reportFileName}`,
+        downloadUrl: `/api/jobs/${mockJob.id}/commissioning-report`,
+        uploadedBy: "system-discom-generator",
+        uploaderRole: "ADMIN",
+        geotag: mockJob.gpsCoordinates ? {
+          latitude: mockJob.gpsCoordinates.lat,
+          longitude: mockJob.gpsCoordinates.lng,
           accuracy: 3.5,
           timestamp: new Date().toISOString(),
-        } : null,
-        metadata: {
-          discomAuthority: `${jobRow.state} State Electricity Board`,
-          systemCapacityKwp: jobRow.capacity_kwp,
-          verifiedSubcontractor: subRecord?.company_name,
-        },
-      })
-      .select()
-      .single();
-
-    if (docError || !newDoc) {
-      console.error("[Create Commissioning Report Error]", docError);
-      return NextResponse.json({ success: false, error: docError?.message || "Failed to create report" }, { status: 500 });
-    }
-
-    try {
-      await supabase.from("audit_logs").insert({
-        action: "COMMISSIONING_REPORT_GENERATED",
-        actor_type: "SYSTEM",
-        actor_identifier: "discom-engine@369akruniverse.in",
-        resource_id: targetJobId,
-        resource_type: "job_documents",
-        metadata: { jobCode: jobRow.job_code, documentId: newDoc.id },
+        } : undefined,
       });
-    } catch (logErr) {
-      console.warn("[Commissioning Report] Audit log warning:", logErr);
+      return NextResponse.json({ success: true, document: doc }, { status: 201 });
     }
-
-    return NextResponse.json({ success: true, document: newDoc }, { status: 201 });
   } catch (err: unknown) {
     console.error("[Create Commissioning Report Error]", err);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });

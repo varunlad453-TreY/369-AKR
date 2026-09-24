@@ -1,9 +1,14 @@
-# 01 Handoff: 369 AKR UNIVERSE Subcontractor Operations Portal (SOP) Enterprise Upgrade (Phase 1)
+# [ARCHIVED] 01 Handoff: 369 AKR UNIVERSE Subcontractor Operations Portal (SOP) Enterprise Upgrade (Phase 1)
+
+> **HISTORICAL ARCHIVE NOTICE (September 2026)**  
+> This document is preserved for historical context and records the completion of **Phase 1** (initial portal upgrade).  
+> **Current Status**: Superseded. The active system now encompasses 26 routes, full Admin modularisation, RA Invoicing & Billing, Vendor KYC, and PWA offline resilience.  
+> **Canonical Documentation**: Refer to [README.md](file:///g:/369/README.md), [ARCHITECTURE.md](file:///g:/369/docs/ARCHITECTURE.md), and [API.md](file:///g:/369/docs/API.md) for the active production specification.
 
 **Date**: September 11, 2026  
 **Engineer**: Enterprise Solutions Architect & Senior Full-Stack Systems Engineer  
 **Domain**: B2B SaaS Architecture, Zero-Trust Subcontractor Gateway, PostgreSQL Row-Level Security, SMS OTP Dispatch, Geotagged Field Operations  
-**Status**: 100% PRODUCTION READY · Phase 1 Completed · 14/14 Next.js Routes Compiled Cleanly · 100% API Integration Tests Passing · Supabase Schema & Immutable Audit Logging Verified  
+**Status**: HISTORICAL RECORD · Phase 1 Completed (Superseded by Phases 2, 3, & RA Billing)  
 
 ---
 

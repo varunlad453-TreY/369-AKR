@@ -1,9 +1,14 @@
-# 03 Handoff: 369 AKR UNIVERSE SOP — Admin Portal Modularisation, Secure Server-Side Auth & Lifecycle Controls
+# [ARCHIVED] 03 Handoff: 369 AKR UNIVERSE SOP — Admin Portal Modularisation, Secure Server-Side Auth & Lifecycle Controls
+
+> **HISTORICAL ARCHIVE NOTICE (September 2026)**  
+> This document is preserved for historical context and records the completion of **Phase 3** (Admin modularisation & server-side auth).  
+> **Current Status**: Superseded. While the admin modularisation and edge middleware documented here remain fully operational, the system has since expanded to include the complete **Running Account (RA) Billing & Invoicing Engine**, Subcontractor KYC Profile module, and automated PDF pipelines (26 routes total). Note also that integration tests referenced herein were executed as manual/ephemeral test harnesses, not committed CI/CD suites.  
+> **Canonical Documentation**: Refer to [README.md](file:///g:/369/README.md), [ARCHITECTURE.md](file:///g:/369/docs/ARCHITECTURE.md), and [API.md](file:///g:/369/docs/API.md) for the active production specification.
 
 **Date**: September 11, 2026  
 **Engineer**: Enterprise Solutions Architect & Senior Full-Stack Systems Engineer  
 **Domain**: Next.js 15 (App Router), React 19, Supabase PostgreSQL, Edge RBAC Middleware, Zero-Trust Session Management, Cascading Deletion Safety, Zod Form Validation  
-**Status**: 100% PRODUCTION READY · Phase 3 Completed · 21/21 Next.js Routes Compiled Cleanly · TypeScript 0 Errors (`npx tsc --noEmit`) · 100% API Integration Tests Passing · Full Admin Portal Modular Architecture Operational  
+**Status**: HISTORICAL RECORD · Phase 3 Completed (Superseded by RA Billing & GST Invoicing)  
 
 ---
 

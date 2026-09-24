@@ -14,6 +14,7 @@ import { Job, Subcontractor } from "@/types";
 import { formatKwp } from "@/lib/utils";
 import { getSubcontractorSession } from "@/lib/auth/subcontractor-session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { db } from "@/lib/state/mock-db";
 
 function StatusBadge({ status }: { status: Job["status"] }) {
   switch (status) {
@@ -63,63 +64,80 @@ export default async function SubcontractorPortalPage() {
     redirect("/gateway");
   }
 
-  const supabase = await createServerSupabaseClient();
+  let subcontractor: Subcontractor | null = null;
+  let jobs: Job[] = [];
 
-  const { data: subRow } = await supabase
-    .from("subcontractors")
-    .select("*")
-    .eq("id", session.id)
-    .maybeSingle();
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: subRow } = await supabase
+      .from("subcontractors")
+      .select("*")
+      .eq("id", session.id)
+      .maybeSingle();
 
-  if (!subRow || !subRow.is_active) {
-    redirect("/gateway");
+    if (subRow && subRow.is_active) {
+      subcontractor = {
+        id: subRow.id,
+        authUserId: subRow.auth_user_id,
+        companyName: subRow.company_name,
+        phoneNumber: subRow.phone_number,
+        vendorCode: subRow.vendor_code,
+        contactPerson: subRow.contact_person,
+        licenseNumber: subRow.license_number,
+        stateRegion: subRow.state_region,
+        isActive: subRow.is_active,
+        rating: Number(subRow.rating) || 5.0,
+        assignedJobsCount: subRow.assigned_jobs_count || 0,
+        completedJobsCount: subRow.completed_jobs_count || 0,
+        createdAt: subRow.created_at,
+        updatedAt: subRow.updated_at,
+      };
+
+      const { data: jobRows } = await supabase
+        .from("jobs")
+        .select("*")
+        .eq("subcontractor_id", session.id)
+        .order("created_at", { ascending: false });
+
+      if (jobRows) {
+        jobs = jobRows.map((j) => ({
+          id: j.id,
+          jobCode: j.job_code,
+          title: j.title,
+          description: j.description,
+          siteAddress: j.site_address,
+          city: j.city,
+          state: j.state,
+          pincode: j.pincode,
+          gpsCoordinates: { lat: j.gps_lat, lng: j.gps_lng },
+          capacityKwp: Number(j.capacity_kwp),
+          systemType: j.system_type,
+          status: j.status,
+          subcontractorId: j.subcontractor_id,
+          createdBy: j.created_by,
+          scheduledStart: j.scheduled_start,
+          scheduledEnd: j.scheduled_end,
+          completedAt: j.completed_at,
+          notes: j.notes,
+          createdAt: j.created_at,
+          updatedAt: j.updated_at,
+        }));
+      }
+    }
+  } catch {}
+
+  // Fallback to in-memory DatabaseManager
+  if (!subcontractor) {
+    const mockSub = db.getSubcontractorById(session.id) || (session.vendorCode ? db.getSubcontractorByVendorCode(session.vendorCode) : undefined);
+    if (mockSub && mockSub.isActive) {
+      subcontractor = mockSub;
+      jobs = db.getJobsBySubcontractor(mockSub.id);
+    }
   }
 
-  const subcontractor: Subcontractor = {
-    id: subRow.id,
-    authUserId: subRow.auth_user_id,
-    companyName: subRow.company_name,
-    phoneNumber: subRow.phone_number,
-    vendorCode: subRow.vendor_code,
-    contactPerson: subRow.contact_person,
-    licenseNumber: subRow.license_number,
-    stateRegion: subRow.state_region,
-    isActive: subRow.is_active,
-    rating: Number(subRow.rating) || 5.0,
-    assignedJobsCount: subRow.assigned_jobs_count || 0,
-    completedJobsCount: subRow.completed_jobs_count || 0,
-    createdAt: subRow.created_at,
-    updatedAt: subRow.updated_at,
-  };
-
-  const { data: jobRows } = await supabase
-    .from("jobs")
-    .select("*")
-    .eq("subcontractor_id", session.id)
-    .order("created_at", { ascending: false });
-
-  const jobs: Job[] = (jobRows || []).map((j) => ({
-    id: j.id,
-    jobCode: j.job_code,
-    title: j.title,
-    description: j.description,
-    siteAddress: j.site_address,
-    city: j.city,
-    state: j.state,
-    pincode: j.pincode,
-    gpsCoordinates: { lat: j.gps_lat, lng: j.gps_lng },
-    capacityKwp: Number(j.capacity_kwp),
-    systemType: j.system_type,
-    status: j.status,
-    subcontractorId: j.subcontractor_id,
-    createdBy: j.created_by,
-    scheduledStart: j.scheduled_start,
-    scheduledEnd: j.scheduled_end,
-    completedAt: j.completed_at,
-    notes: j.notes,
-    createdAt: j.created_at,
-    updatedAt: j.updated_at,
-  }));
+  if (!subcontractor) {
+    redirect("/gateway");
+  }
 
   const activeJobs = jobs.filter((j) => j.status !== "completed");
   const completedJobs = jobs.filter((j) => j.status === "completed");
@@ -141,7 +159,20 @@ export default async function SubcontractorPortalPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
+            <Link
+              href="/portal/profile"
+              className="text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors px-2 py-1 rounded hover:bg-slate-100"
+            >
+              Tax &amp; Bank Profile
+            </Link>
+            <Link
+              href="/portal/bills"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium shadow-xs transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>RA Invoices</span>
+            </Link>
+            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
               Verified Partner
             </span>
           </div>

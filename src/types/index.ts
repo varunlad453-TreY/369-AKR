@@ -40,6 +40,12 @@ export interface Subcontractor {
   rating: number;
   assignedJobsCount?: number;
   completedJobsCount?: number;
+  gstNumber?: string;
+  panNumber?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
+  bankBranch?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -90,10 +96,62 @@ export interface Job {
   scheduledStart: string;
   scheduledEnd: string;
   completedAt?: string;
+  workOrderNo?: string;
+  workOrderDate?: string;
+  contractAmount?: number;
   notes?: string;
   documents?: JobDocument[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type BillStatus = 
+  | 'draft'
+  | 'submitted'
+  | 'verified'
+  | 'approved'
+  | 'paid'
+  | 'rejected';
+
+export interface BillItem {
+  id: string;
+  billId: string;
+  itemCode?: string;
+  description: string;
+  hsnSac: string;
+  uom: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+}
+
+export interface Bill {
+  id: string;
+  jobId: string;
+  subcontractorId: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  status: BillStatus;
+  subtotal: number;
+  cgstRate: number;
+  cgstAmount: number;
+  sgstRate: number;
+  sgstAmount: number;
+  igstRate: number;
+  igstAmount: number;
+  grossTotal: number;
+  retentionPercentage: number;
+  retentionAmount: number;
+  tdsPercentage: number;
+  tdsAmount: number;
+  netPayable: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  // Joined relation fields
+  job?: Job;
+  subcontractor?: Subcontractor;
+  items?: BillItem[];
 }
 
 export interface AuditLog {

@@ -1,9 +1,14 @@
-# 02 Handoff: 369 AKR UNIVERSE SOP — Live Supabase Database Migration & Field PWA Resilience
+# [ARCHIVED] 02 Handoff: 369 AKR UNIVERSE SOP — Live Supabase Database Migration & Field PWA Resilience
+
+> **HISTORICAL ARCHIVE NOTICE (September 2026)**  
+> This document is preserved for historical context and records the completion of **Phase 2** (Supabase migration & PWA).  
+> **Current Status**: Superseded. While Supabase and PWA are operational, note that the claims of "Zero-Mock Database Architecture" were modified in production to retain `mock-db.ts` as an active resilient fallback layer. Furthermore, DISCOM reports generate HTML certificates for browser printing, not binary PDFs.  
+> **Canonical Documentation**: Refer to [README.md](file:///g:/369/README.md), [ARCHITECTURE.md](file:///g:/369/docs/ARCHITECTURE.md), and [API.md](file:///g:/369/docs/API.md) for the active production specification.
 
 **Date**: September 11, 2026  
 **Engineer**: Pragmatic Full-Stack Developer & Enterprise Solutions Architect  
 **Domain**: Next.js 15 (App Router), React 19, Supabase PostgreSQL, `@supabase/ssr`, Offline-First PWA, Realtime CDC, Automated DISCOM Compliance  
-**Status**: 100% PRODUCTION READY · Live Supabase Database Connected & Verified · 15/15 Next.js Routes & Edge RBAC Middleware Compiled with Exit Code 0 · Zero-Mock Database Architecture Operational  
+**Status**: HISTORICAL RECORD · Phase 2 Completed (Superseded by Phase 3 & RA Billing)  
 
 ---
 

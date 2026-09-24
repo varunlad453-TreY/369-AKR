@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Layers,
   Users,
+  Receipt,
   ShieldAlert,
   Plus,
   LogOut,
@@ -93,6 +94,18 @@ export default function AdminLayout({
                 >
                   <Users className="w-3.5 h-3.5" />
                   <span>Contractor Directory</span>
+                </Link>
+
+                <Link
+                  href="/admin/bills"
+                  className={`px-3 py-2 rounded-md font-medium transition-colors flex items-center gap-1.5 ${
+                    isTabActive("/admin/bills")
+                      ? "bg-slate-100 text-slate-900 font-semibold"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>Accounts Payable</span>
                 </Link>
 
                 <Link

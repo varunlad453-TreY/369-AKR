@@ -42,6 +42,19 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
+DO $$ BEGIN
+    CREATE TYPE bill_status AS ENUM (
+        'draft',
+        'submitted',
+        'verified',
+        'approved',
+        'paid',
+        'rejected'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
 -- 3. ADMINS TABLE
 CREATE TABLE IF NOT EXISTS public.admins (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -69,6 +82,12 @@ CREATE TABLE IF NOT EXISTS public.subcontractors (
     otp_hash TEXT,
     otp_expires_at TIMESTAMPTZ,
     otp_attempts INT DEFAULT 0,
+    gst_number TEXT,
+    pan_number TEXT,
+    bank_name TEXT,
+    bank_account_number TEXT,
+    bank_ifsc TEXT,
+    bank_branch TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -76,6 +95,12 @@ CREATE TABLE IF NOT EXISTS public.subcontractors (
 ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS otp_hash TEXT;
 ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMPTZ;
 ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS otp_attempts INT DEFAULT 0;
+ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS gst_number TEXT;
+ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS pan_number TEXT;
+ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS bank_name TEXT;
+ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS bank_account_number TEXT;
+ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS bank_ifsc TEXT;
+ALTER TABLE public.subcontractors ADD COLUMN IF NOT EXISTS bank_branch TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_subcontractors_phone ON public.subcontractors(phone_number);
 CREATE INDEX IF NOT EXISTS idx_subcontractors_vendor_code ON public.subcontractors(vendor_code);
@@ -100,10 +125,17 @@ CREATE TABLE IF NOT EXISTS public.jobs (
     scheduled_start TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     scheduled_end TIMESTAMPTZ NOT NULL DEFAULT (timezone('utc'::text, now()) + interval '14 days'),
     completed_at TIMESTAMPTZ,
+    work_order_no TEXT,
+    work_order_date DATE,
+    contract_amount NUMERIC(12,2),
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS work_order_no TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS work_order_date DATE;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS contract_amount NUMERIC(12,2);
 
 CREATE INDEX IF NOT EXISTS idx_jobs_subcontractor ON public.jobs(subcontractor_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON public.jobs(status);
@@ -155,13 +187,62 @@ CREATE TABLE IF NOT EXISTS public.otp_rate_limits (
     blocked_until TIMESTAMPTZ
 );
 
--- 9. ROW LEVEL SECURITY (RLS) POLICIES
+-- 9. BILLS TABLE (Running Account Bills & Tax Invoices)
+CREATE TABLE IF NOT EXISTS public.bills (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID NOT NULL REFERENCES public.jobs(id) ON DELETE RESTRICT,
+    subcontractor_id UUID NOT NULL REFERENCES public.subcontractors(id) ON DELETE RESTRICT,
+    invoice_no TEXT NOT NULL UNIQUE,
+    invoice_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    status bill_status NOT NULL DEFAULT 'draft',
+    subtotal NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    cgst_rate NUMERIC(5,2) NOT NULL DEFAULT 0.00,
+    cgst_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    sgst_rate NUMERIC(5,2) NOT NULL DEFAULT 0.00,
+    sgst_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    igst_rate NUMERIC(5,2) NOT NULL DEFAULT 0.00,
+    igst_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    gross_total NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    retention_percentage NUMERIC(5,2) NOT NULL DEFAULT 0.00,
+    retention_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    tds_percentage NUMERIC(5,2) NOT NULL DEFAULT 0.00,
+    tds_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    net_payable NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_bills_subcontractor ON public.bills(subcontractor_id);
+CREATE INDEX IF NOT EXISTS idx_bills_job ON public.bills(job_id);
+CREATE INDEX IF NOT EXISTS idx_bills_status ON public.bills(status);
+CREATE INDEX IF NOT EXISTS idx_bills_invoice_no ON public.bills(invoice_no);
+CREATE INDEX IF NOT EXISTS idx_bills_created_at ON public.bills(created_at DESC);
+
+-- 10. BILL_ITEMS TABLE (Granular Line Items & Milestones)
+CREATE TABLE IF NOT EXISTS public.bill_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    bill_id UUID NOT NULL REFERENCES public.bills(id) ON DELETE CASCADE,
+    item_code TEXT,
+    description TEXT NOT NULL,
+    hsn_sac TEXT NOT NULL,
+    uom TEXT NOT NULL,
+    quantity NUMERIC(10,3) NOT NULL,
+    rate NUMERIC(12,2) NOT NULL,
+    amount NUMERIC(12,2) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_bill_items_bill_id ON public.bill_items(bill_id);
+
+-- 11. ROW LEVEL SECURITY (RLS) POLICIES
 ALTER TABLE public.admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subcontractors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.job_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.otp_rate_limits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bills ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bill_items ENABLE ROW LEVEL SECURITY;
 
 -- Clean up existing policies for idempotency
 DROP POLICY IF EXISTS "Allow portal full access to subcontractors" ON public.subcontractors;
@@ -170,6 +251,8 @@ DROP POLICY IF EXISTS "Allow portal full access to documents" ON public.job_docu
 DROP POLICY IF EXISTS "Allow portal full access to audit_logs" ON public.audit_logs;
 DROP POLICY IF EXISTS "Allow portal full access to otp_rate_limits" ON public.otp_rate_limits;
 DROP POLICY IF EXISTS "Allow portal full access to admins" ON public.admins;
+DROP POLICY IF EXISTS "Allow portal full access to bills" ON public.bills;
+DROP POLICY IF EXISTS "Allow portal full access to bill_items" ON public.bill_items;
 
 -- Permissive policies for the portal client & API routes
 CREATE POLICY "Allow portal full access to subcontractors" ON public.subcontractors
@@ -190,8 +273,14 @@ CREATE POLICY "Allow portal full access to otp_rate_limits" ON public.otp_rate_l
 CREATE POLICY "Allow portal full access to admins" ON public.admins
     FOR ALL USING (true) WITH CHECK (true);
 
--- 10. REALTIME CONFIGURATION
--- Enable Supabase Realtime CDC on jobs, subcontractors, and audit logs
+CREATE POLICY "Allow portal full access to bills" ON public.bills
+    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow portal full access to bill_items" ON public.bill_items
+    FOR ALL USING (true) WITH CHECK (true);
+
+-- 12. REALTIME CONFIGURATION
+-- Enable Supabase Realtime CDC on jobs, subcontractors, audit logs, and bills
 DO $$ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.jobs;
 EXCEPTION
@@ -210,7 +299,13 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- 11. IMMUTABLE AUDIT LOG TRIGGER
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.bills;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- 13. IMMUTABLE AUDIT LOG TRIGGERS
 CREATE OR REPLACE FUNCTION public.log_job_status_change()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -243,15 +338,58 @@ CREATE TRIGGER trigger_log_job_status
     FOR EACH ROW
     EXECUTE FUNCTION public.log_job_status_change();
 
--- 12. SEED REALISTIC 369 AKR UNIVERSE DATA
-INSERT INTO public.subcontractors (id, company_name, phone_number, vendor_code, contact_person, license_number, state_region, is_active, rating)
-VALUES
-    ('c0000000-0000-0000-0000-000000000001', 'SuryaShakti EPC Infrastructure Ltd.', '+919812037550', 'AKR-JOB-7K9M-SEC', 'Rajesh Kumar Verma', 'DL-ELECT-2024-8842', 'Haryana / Delhi NCR', true, 4.95),
-    ('c0000000-0000-0000-0000-000000000002', 'Thar High-Voltage Power Solutions', '+919050937550', 'AKR-JOB-4X2P-SEC', 'Virender Shekhawat', 'RJ-SOLAR-2023-1192', 'Rajasthan', true, 4.88),
-    ('c0000000-0000-0000-0000-000000000003', 'Apex Green Energy Installations', '+919876543210', 'AKR-JOB-9W1Z-SEC', 'Ankit Tripathy', 'UP-GRID-2024-4011', 'Uttar Pradesh', true, 4.75)
-ON CONFLICT (phone_number) DO NOTHING;
+CREATE OR REPLACE FUNCTION public.log_bill_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (OLD.status IS DISTINCT FROM NEW.status) THEN
+        INSERT INTO public.audit_logs (
+            action,
+            actor_type,
+            resource_id,
+            resource_type,
+            metadata
+        ) VALUES (
+            'BILL_STATUS_UPDATED',
+            'SYSTEM',
+            NEW.id,
+            'bills',
+            jsonb_build_object(
+                'invoice_no', NEW.invoice_no,
+                'old_status', OLD.status,
+                'new_status', NEW.status,
+                'subtotal', NEW.subtotal,
+                'gross_total', NEW.gross_total,
+                'retention_amount', NEW.retention_amount,
+                'tds_amount', NEW.tds_amount,
+                'net_payable', NEW.net_payable
+            )
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-INSERT INTO public.jobs (id, job_code, title, description, site_address, city, state, pincode, gps_lat, gps_lng, capacity_kwp, system_type, status, subcontractor_id, scheduled_start, scheduled_end)
+DROP TRIGGER IF EXISTS trigger_log_bill_status ON public.bills;
+CREATE TRIGGER trigger_log_bill_status
+    AFTER UPDATE ON public.bills
+    FOR EACH ROW
+    EXECUTE FUNCTION public.log_bill_status_change();
+
+-- 14. SEED REALISTIC 369 AKR UNIVERSE DATA
+INSERT INTO public.subcontractors (id, company_name, phone_number, vendor_code, contact_person, license_number, state_region, is_active, rating, gst_number, pan_number, bank_name, bank_account_number, bank_ifsc, bank_branch)
+VALUES
+    ('c0000000-0000-0000-0000-000000000001', 'SuryaShakti EPC Infrastructure Ltd.', '+919812037550', 'AKR-JOB-7K9M-SEC', 'Rajesh Kumar Verma', 'DL-ELECT-2024-8842', 'Haryana / Delhi NCR', true, 4.95, '27ENRPM7534P1ZV', 'ENRPM7534P', 'HDFC Bank Ltd.', '50200124368375', 'HDFC0001991', 'Hingoli - Nawa Mondha, Plot No 8/163, Hingoli 431513'),
+    ('c0000000-0000-0000-0000-000000000002', 'Thar High-Voltage Power Solutions', '+919050937550', 'AKR-JOB-4X2P-SEC', 'Virender Shekhawat', 'RJ-SOLAR-2023-1192', 'Rajasthan', true, 4.88, '08AABCT1330L1ZT', 'AABCT1330L', 'State Bank of India', '389012445678', 'SBIN0004122', 'Jaipur Industrial Area, Rajasthan'),
+    ('c0000000-0000-0000-0000-000000000003', 'Apex Green Energy Installations', '+919876543210', 'AKR-JOB-9W1Z-SEC', 'Ankit Tripathy', 'UP-GRID-2024-4011', 'Uttar Pradesh', true, 4.75, '09AAGCA8821Q1Z4', 'AAGCA8821Q', 'ICICI Bank Ltd.', '001205018992', 'ICIC0000012', 'Noida Sector 18, Uttar Pradesh')
+ON CONFLICT (phone_number) DO UPDATE SET
+    gst_number = EXCLUDED.gst_number,
+    pan_number = EXCLUDED.pan_number,
+    bank_name = EXCLUDED.bank_name,
+    bank_account_number = EXCLUDED.bank_account_number,
+    bank_ifsc = EXCLUDED.bank_ifsc,
+    bank_branch = EXCLUDED.bank_branch;
+
+INSERT INTO public.jobs (id, job_code, title, description, site_address, city, state, pincode, gps_lat, gps_lng, capacity_kwp, system_type, status, subcontractor_id, scheduled_start, scheduled_end, work_order_no, work_order_date, contract_amount)
 VALUES
     (
         'b0000000-0000-0000-0000-000000000001',
@@ -269,7 +407,10 @@ VALUES
         'in_progress',
         'c0000000-0000-0000-0000-000000000001',
         timezone('utc'::text, now() - interval '2 days'),
-        timezone('utc'::text, now() + interval '12 days')
+        timezone('utc'::text, now() + interval '12 days'),
+        'AKR/WO/2026/0104',
+        '2026-02-15',
+        1750000.00
     ),
     (
         'b0000000-0000-0000-0000-000000000002',
@@ -287,7 +428,10 @@ VALUES
         'assigned',
         'c0000000-0000-0000-0000-000000000002',
         timezone('utc'::text, now() + interval '1 day'),
-        timezone('utc'::text, now() + interval '25 days')
+        timezone('utc'::text, now() + interval '25 days'),
+        'AKR/WO/2026/0189',
+        '2026-03-01',
+        5400000.00
     ),
     (
         'b0000000-0000-0000-0000-000000000003',
@@ -305,9 +449,15 @@ VALUES
         'completed',
         'c0000000-0000-0000-0000-000000000001',
         timezone('utc'::text, now() - interval '10 days'),
-        timezone('utc'::text, now() - interval '1 day')
+        timezone('utc'::text, now() - interval '1 day'),
+        'AKR/WO/2026/0078',
+        '2026-01-10',
+        480000.00
     )
-ON CONFLICT (job_code) DO NOTHING;
+ON CONFLICT (job_code) DO UPDATE SET
+    work_order_no = EXCLUDED.work_order_no,
+    work_order_date = EXCLUDED.work_order_date,
+    contract_amount = EXCLUDED.contract_amount;
 
 INSERT INTO public.job_documents (job_id, document_type, file_name, file_size, mime_type, storage_path, download_url, uploaded_by, uploader_role)
 VALUES
@@ -351,6 +501,62 @@ VALUES
     ('SYSTEM_INIT', 'SYSTEM', 'system@369akruniverse.in', 'system', '{"message": "369 AKR UNIVERSE Supabase Database initialized successfully"}'::jsonb),
     ('SUBCONTRACTOR_ONBOARDED', 'ADMIN', 'dispatcher@369akruniverse.in', 'subcontractors', '{"vendorCode": "AKR-JOB-7K9M-SEC", "companyName": "SuryaShakti EPC Infrastructure Ltd."}'::jsonb),
     ('JOB_DISPATCHED', 'ADMIN', 'dispatcher@369akruniverse.in', 'jobs', '{"jobCode": "AKR-2026-ROH-001", "capacityKwp": 350.00}'::jsonb);
+
+INSERT INTO public.bills (id, job_id, subcontractor_id, invoice_no, invoice_date, status, subtotal, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, gross_total, retention_percentage, retention_amount, tds_percentage, tds_amount, net_payable, notes)
+VALUES
+    (
+        'd0000000-0000-0000-0000-000000000001',
+        'b0000000-0000-0000-0000-000000000001',
+        'c0000000-0000-0000-0000-000000000001',
+        'SS/2026/RA-01',
+        '2026-03-10',
+        'approved',
+        385000.00,
+        9.00,
+        34650.00,
+        9.00,
+        34650.00,
+        0.00,
+        0.00,
+        454300.00,
+        5.00,
+        19250.00,
+        1.00,
+        3850.00,
+        431200.00,
+        'RA Bill 01: Piling, Module Mounting Structure (MMS) Erection, and DC Cabling milestone completed.'
+    ),
+    (
+        'd0000000-0000-0000-0000-000000000002',
+        'b0000000-0000-0000-0000-000000000003',
+        'c0000000-0000-0000-0000-000000000001',
+        'SS/2026/RA-02',
+        '2026-03-14',
+        'submitted',
+        240000.00,
+        9.00,
+        21600.00,
+        9.00,
+        21600.00,
+        0.00,
+        0.00,
+        283200.00,
+        0.00,
+        0.00,
+        0.00,
+        0.00,
+        283200.00,
+        'Final RA Bill: Commissioning and grid synchronization milestone.'
+    )
+ON CONFLICT (invoice_no) DO NOTHING;
+
+INSERT INTO public.bill_items (id, bill_id, item_code, description, hsn_sac, uom, quantity, rate, amount)
+VALUES
+    ('d1000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', 'ITEM-MMS-01', 'MMS Piling & Module Mounting Structure (MMS) Erection with zinc-coated hardware', '9954', 'kWp', 350.000, 750.00, 262500.00),
+    ('d1000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000001', 'ITEM-DC-02', 'DC Array 1x4 sqmm Solar Cable Laying, Conduit Pulling & String Combiner Inverter Termination', '9987', 'kWp', 350.000, 350.00, 122500.00),
+    ('d1000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', 'ITEM-MOD-01', 'Solar PV 540W Mono-PERC Half-Cut Module Mounting & Interconnection', '9954', 'kWp', 85.000, 1800.00, 153000.00),
+    ('d1000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000002', 'ITEM-HT-02', 'HT/LT Interconnect Busbar, Energy Net Metering Panel & DISCOM Inspection Sync', '9987', 'Lot', 1.000, 87000.00, 87000.00)
+ON CONFLICT DO NOTHING;
 
 -- 13. SUPABASE STORAGE BUCKETS & POLICIES
 INSERT INTO storage.buckets (id, name, public)

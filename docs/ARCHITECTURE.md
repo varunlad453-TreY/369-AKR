@@ -203,7 +203,7 @@ Infrastructure projects across India (remote solar power arrays, un-electrified 
 2. **IndexedDB Upload Vault (`src/lib/offline/sync-manager.ts`)**:
    - Powered by `idb-keyval` under the database `akr-sop-offline-db` / object store `proof-upload-vault`.
    - When a subcontractor snaps a milestone photo without an internet connection, the payload (Base64 JPEG), live GPS coordinates (`navigator.geolocation`), and timestamp are diverted into IndexedDB.
-   - A global UI indicator (`NetworkStatusIndicator`) displays: `⚠ FIELD OFFLINE VAULT (N QUEUED)`.
+   - A global UI indicator (`NetworkStatusIndicator`) displays: `[OFFLINE VAULT: N QUEUED]`.
 3. **Automatic Flush Engine**:
    - The PWA provider listens for `window.addEventListener('online')` and triggers Background Sync API (`sync-proof-uploads`).
    - Sequentially flushes queued proofs to `/api/jobs/[jobId]/upload` and removes items from IndexedDB upon HTTP 201 confirmation.

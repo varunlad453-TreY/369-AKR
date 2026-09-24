@@ -125,7 +125,7 @@ All primary endpoints were upgraded to execute direct Supabase operations:
 - **Web App Manifest ([public/manifest.json](file:///g:/369/public/manifest.json))**: Standalone mobile display, solar amber brand styling (`#0B0F19` background, `#FFD23F` theme), and offline shell declarations.
 - **Service Worker ([public/sw.js](file:///g:/369/public/sw.js))**: Precaches shells, stale-while-revalidate for static bundles, network-first with offline fallback, and Background Sync API registration (`sync-proof-uploads`).
 - **PWA Provider Component ([src/components/pwa-provider.tsx](file:///g:/369/src/components/pwa-provider.tsx))**: Mounts globally in [layout.tsx](file:///g:/369/src/app/layout.tsx), listens for network reconnection events, and auto-flushes offline queues.
-- **Network Status & Vault Pill ([src/components/network-status-indicator.tsx](file:///g:/369/src/components/network-status-indicator.tsx))**: Global navbar widget showing real-time connectivity (`● FIELD NETWORK ACTIVE` vs `⚠ ROOFTOP OFFLINE VAULT`) and pending sync counts.
+- **Network Status & Vault Pill ([src/components/network-status-indicator.tsx](file:///g:/369/src/components/network-status-indicator.tsx))**: Global navbar widget showing real-time connectivity (`[FIELD NETWORK ACTIVE]` vs `[FIELD OFFLINE VAULT]`) and pending sync counts.
 
 ### 4.2 IndexedDB Proof-of-Work Upload Vault ([src/lib/offline/sync-manager.ts](file:///g:/369/src/lib/offline/sync-manager.ts))
 - Powered by `idb-keyval` under store `akr-sop-offline-db` / `proof-upload-vault`.

@@ -30,7 +30,7 @@ To prevent ambiguity, every roadmap capability is classified under one of the fo
   - Server Component deriving identity strictly from session cookie.
   - Active vs completed project segmentation and real-time kWp capacity metrics.
 - [x] **Interactive Work Order & Lifecycle Stepper (`/portal/job/[jobId]`)**:
-  - 5-stage dispatch progression (`assigned` ➔ `en_route` ➔ `on_site` ➔ `in_progress` ➔ `completed`).
+  - 5-stage dispatch progression (`assigned` -> `en_route` -> `on_site` -> `in_progress` -> `completed`).
   - High-voltage Single Line Diagram (SLD) and CAD schematic access.
   - Geotagged proof-of-work photo upload with browser satellite GPS coordinate watermarking.
 - [x] **DISCOM Commissioning Certificate Generator**:

@@ -63,7 +63,7 @@
 POST /api/jobs/[jobId]/upload                           Enqueued in IndexedDB Vault
     │                                                   Store: 'akr-sop-offline-db'
     ├─► Decode Base64 to binary Buffer                  Status: 'QUEUED'
-    ├─► Upload to Supabase Storage S3                   Pill: '⚠ OFFLINE VAULT (1 QUEUED)'
+    ├─► Upload to Supabase Storage S3                   Pill: '[OFFLINE VAULT: 1 QUEUED]'
     ├─► Insert metadata into public.job_documents                 │
     │   (geotag: { lat, lng, accuracy, timestamp })              ▼
     ├─► Record 'PROOF_UPLOADED' in public.audit_logs    Device Restores Signal

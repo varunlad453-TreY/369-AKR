@@ -2,7 +2,7 @@
 
 **System**: 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)  
 **Version**: 1.0.0 (Post-Phase 3 + RA Billing & Invoicing Engine)  
-**Target Domain**: Solar EPC (Engineering, Procurement, Construction) & Utility-Scale Dispatches  
+**Target Domain**: Multi-Sector Infrastructure EPC & Utility Work Dispatch (Solar Power, Indian Railways, BSNL OFC Telecom, High-Voltage Electrical & Civil Infrastructure)  
 **Last Audited**: September 24, 2026  
 **Status**: ACTIVE CANONICAL ARCHITECTURE  
 
@@ -10,9 +10,9 @@
 
 ## 1. High-Level System Overview
 
-The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** is a serverless B2B workforce orchestration, job dispatching, and statutory billing platform built for 369 AKR UNIVERSE (India's premier solar energy EPC and renewable infrastructure contractor).
+The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** is a serverless B2B workforce orchestration, job dispatching, and statutory billing platform built for **369 AKR UNIVERSE** — a premier multi-sector Engineering, Procurement, Construction (EPC) and utility infrastructure enterprise operating across **Solar Energy, Indian Railways Electrification, Telecom BSNL Optical Fibre Cable (OFC) Networks, and Industrial Civil/Electrical Engineering**.
 
-The platform replaces legacy static exports and unencrypted file distribution with an enterprise, zero-trust web application designed for harsh Indian field conditions, strict telecom DLT regulations, and Indian GST/Income Tax statutory compliance.
+The platform replaces legacy static exports and unencrypted file distribution with an enterprise, zero-trust web application designed for harsh Indian field conditions (remote solar arrays, railway corridors, highway OFC trenching routes), strict telecom DLT regulations, and Indian GST/Income Tax statutory compliance.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -41,12 +41,18 @@ The platform replaces legacy static exports and unencrypted file distribution wi
 │  Supabase Cloud (PostgreSQL 15+)        │  │  src/lib/state/mock-db.ts (Singleton)     │
 │  - Row-Level Security (RLS) Policies    │  │  - Zero-config local development          │
 │  - Realtime CDC (supabase_realtime)     │  │  - Automatic fallback if Supabase offline │
-│  - Immutable Audit Triggers             │  │  - Pre-seeded with authentic solar sites  │
+│  - Immutable Audit Triggers             │  │  - Pre-seeded multi-sector project sites  │
 └─────────────────────────────────────────┘  └───────────────────────────────────────────┘
 ```
 
 > [!NOTE]
-> **Domain Clarification**: This repository is dedicated solely to Solar EPC contractor field dispatches, blueprint distribution, geotagged proof-of-work, and GST billing. It does **not** contain network hardware discovery, network packet routing, or network topology/path trace engines.
+> **Enterprise Operational Scope**: This platform is purpose-built for enterprise infrastructure field dispatches, engineering schematic/blueprint distribution, GPS-verified proof-of-work, and GST milestone billing across AKR's core divisions:
+> - **Solar Energy & Renewable Power EPC** (Rooftop & Utility Ground-Mount PV)
+> - **Indian Railways Infrastructure & EPC** (Track Electrification, Traction Substations & Civil Structures)
+> - **Telecom Networks & BSNL OFC** (Optical Fibre Cable HDD Trenching, Blowing, Splicing & Maintenance)
+> - **Power Transmission & Heavy Civil Infrastructure**
+> 
+> *(Note: The platform is a multi-sector workforce dispatch and EPC operations system; it does not perform IP-level network packet routing or software network topology analysis).*
 
 ---
 
@@ -59,7 +65,7 @@ The platform replaces legacy static exports and unencrypted file distribution wi
 | **Styling** | Tailwind CSS 3.4.17, PostCSS | High-density corporate dashboard styling, mobile-first responsive grid |
 | **Validation** | Zod 3.24.1 | Runtime payload validation for forms and API routes (`src/lib/zod/schemas.ts`) |
 | **Primary DB** | Supabase PostgreSQL 15+ (`@supabase/ssr`) | Relational database, Row-Level Security, foreign-key cascade protection |
-| **Offline Vault** | IndexedDB (`idb-keyval` 6.3.0) + Service Worker | Offline-first PWA caching for remote solar rooftop installation sites |
+| **Offline Vault** | IndexedDB (`idb-keyval` 6.3.0) + Service Worker | Offline-first PWA caching for remote field installation sites (solar, railways, OFC) |
 | **Invoice PDF** | `jspdf` 4.2.1 + `jspdf-autotable` 5.0.8 | Server-side/client-side GST tax invoice & RA bill generation in memory |
 | **Vendor Dossier**| Python 3 + ReportLab | Institutional 1-page subcontractor empanelment PDF generation via child process |
 | **SMS Gateway** | MSG91 / Twilio abstraction | TRAI DLT-compliant transactional OTP SMS dispatch with developer fallback |
@@ -188,7 +194,7 @@ A foundational architectural decision in this codebase is the **Dual-Layer Datab
 
 ## 6. Field PWA & Offline Upload Vault
 
-Solar power plants in India are frequently located in remote arid zones or on industrial sheet-metal rooftops where cellular signals fluctuate:
+Infrastructure projects across India (remote solar power arrays, un-electrified railway tracks, and highway optical fibre trenching routes) frequently operate in harsh field zones where cellular signals fluctuate or drop entirely:
 
 1. **Service Worker (`public/sw.js`)**:
    - Precaches the application shell (`/`, `/portal`, `/gateway`, logos, manifest).
@@ -197,7 +203,7 @@ Solar power plants in India are frequently located in remote arid zones or on in
 2. **IndexedDB Upload Vault (`src/lib/offline/sync-manager.ts`)**:
    - Powered by `idb-keyval` under the database `akr-sop-offline-db` / object store `proof-upload-vault`.
    - When a subcontractor snaps a milestone photo without an internet connection, the payload (Base64 JPEG), live GPS coordinates (`navigator.geolocation`), and timestamp are diverted into IndexedDB.
-   - A global UI indicator (`NetworkStatusIndicator`) displays: `⚠ ROOFTOP OFFLINE VAULT (N QUEUED)`.
+   - A global UI indicator (`NetworkStatusIndicator`) displays: `⚠ FIELD OFFLINE VAULT (N QUEUED)`.
 3. **Automatic Flush Engine**:
    - The PWA provider listens for `window.addEventListener('online')` and triggers Background Sync API (`sync-proof-uploads`).
    - Sequentially flushes queued proofs to `/api/jobs/[jobId]/upload` and removes items from IndexedDB upon HTTP 201 confirmation.

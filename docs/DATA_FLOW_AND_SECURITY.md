@@ -47,7 +47,7 @@
 ## 2. Flow 2: Field Proof-of-Work Upload (Online vs. Offline PWA)
 
 ```
-[Subcontractor at Solar Site: /portal/job/[jobId]]
+[Subcontractor at Field Site (Solar / Railway Corridor / BSNL OFC / Civil Site): /portal/job/[jobId]]
           │
           │ 1. Capture installation milestone photo
           │ 2. Browser queries satellite GPS: navigator.geolocation.getCurrentPosition()

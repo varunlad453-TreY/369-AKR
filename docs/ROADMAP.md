@@ -45,7 +45,7 @@ To prevent ambiguity, every roadmap capability is classified under one of the fo
 - [x] **Edge RBAC Middleware (`src/middleware.ts`)**:
   - Zero-trust edge route protection for `/admin/*` and `/portal/*`.
 - [x] **Guarded Deletion Safety Lifecycles**:
-  - Solar project deletion (`DELETE /api/jobs/[id]`) with cascading document purge.
+  - Infrastructure project deletion (`DELETE /api/jobs/[id]`) with cascading document purge.
   - Contractor offboarding guard (`DELETE /api/subcontractors/[id]`) returning `HTTP 409 Conflict` if active projects remain assigned.
 - [x] **Security Audit Ledger (`/admin/audit-logs`)**:
   - Append-only PostgreSQL compliance stream tracking all state changes, dispatches, and logins.
@@ -104,11 +104,11 @@ To prevent ambiguity, every roadmap capability is classified under one of the fo
 
 1. **Executive GIS Fleet Dashboard ("War Room" Map)**:
    - Target route: `/admin/fleet-map`.
-   - Leaflet / OpenStreetMap integration with live marker clustering across North India (Haryana, Rajasthan, Uttar Pradesh, Maharashtra).
+   - Leaflet / OpenStreetMap integration with live marker clustering across North & Western India (Haryana, Rajasthan, Uttar Pradesh, Maharashtra).
    - Realtime CDC color-coding (`assigned`: Purple, `in_progress`: Amber pulse, `completed`: Emerald check).
 2. **Supply Chain Asset Serialization & Barcode Scanning**:
    - WebRTC / HTML5 barcode scanner (`html5-qrcode`) embedded in work order view.
-   - Restrict status progression to `in_progress` until string inverters and solar module pallets are scanned and validated against warehouse serial manifests.
+   - Restrict status progression to `in_progress` until primary project materials (string inverters & solar PV pallets, railway catenary/substation equipment, or BSNL OFC cable drums) are scanned and validated against warehouse manifests.
 3. **Automated Banking Settlement Integration**:
    - Integration with Indian payment payout APIs (RazorpayX / Cashfree) for direct NEFT/RTGS disbursement once an RA bill is marked `approved` or `paid`.
 

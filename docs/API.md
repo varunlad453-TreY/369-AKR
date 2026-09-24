@@ -118,13 +118,13 @@
 
 ---
 
-## 2. Solar Installation Projects & Dispatches
+## 2. Infrastructure Projects & Dispatches (Solar, Railways, BSNL OFC, Civil/Electrical)
 
 ### 2.1 List Projects
 - **Endpoint**: `GET /api/jobs`
 - **Query Parameters**:
   - `subcontractorId` (optional): Filter jobs bound to a specific contractor UUID.
-- **Description**: Queries `public.jobs` joined with `job_documents`. Returns normalized camelCase array. Falls back to `mock-db.ts` on Supabase error.
+- **Description**: Queries `public.jobs` joined with `job_documents` across all infrastructure divisions (Solar PV arrays, Railway Electrification, BSNL OFC cable routes, and industrial civil sites). Returns normalized camelCase array. Falls back to `mock-db.ts` on Supabase error.
 - **Response (`HTTP 200 OK`)**:
   ```json
   {

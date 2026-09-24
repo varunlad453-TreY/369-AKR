@@ -92,7 +92,7 @@ If configuring a fresh Supabase PostgreSQL project, execute the SQL scripts in t
 - Creates enums (`user_role`, `job_status`, `document_type`).
 - Creates core tables: `admins`, `subcontractors`, `jobs`, `job_documents`, `audit_logs`, `otp_rate_limits`.
 - Attaches Row Level Security (RLS) policies and the automatic audit log trigger (`trigger_log_job_status`).
-- Seeds initial solar projects (Rohtak, Jaipur, Jind) and Tier-1 contractors.
+- Seeds initial multi-sector infrastructure projects (Solar, Railways, BSNL OFC) and Tier-1 contractors.
 
 ### Step 2: Execute RA Billing Migration (`supabase/migration_ra_billing.sql`)
 - Extends `subcontractors` with statutory fields (`gst_number`, `pan_number`, `bank_name`, `bank_account_number`, `bank_ifsc`, `bank_branch`).
@@ -110,8 +110,8 @@ If configuring a fresh Supabase PostgreSQL project, execute the SQL scripts in t
 
 | Role | Access URL | Credentials | Operational Scope |
 | :--- | :--- | :--- | :--- |
-| **Solar Contractor**<br>(Swarajya Construction) | `/gateway` | Vendor Code: `AKR-1114`<br>OTP: `369369` (or dynamic code) | View assigned jobs, CAD schematics, upload geotagged proofs, submit RA bills, edit tax profile |
-| **Solar Contractor**<br>(SuryaShakti EPC) | `/gateway` | Vendor Code: `AKR-JOB-7K9M-SEC`<br>OTP: `369369` (or dynamic code) | Rohtak 450 kWp industrial rooftop operations & RA-01 invoice |
+| **Infrastructure Contractor**<br>(Swarajya Construction) | `/gateway` | Vendor Code: `AKR-1114`<br>OTP: `369369` (or dynamic code) | View assigned jobs (Solar/Railways/OFC), CAD schematics, upload geotagged proofs, submit RA bills, edit tax profile |
+| **Infrastructure Contractor**<br>(SuryaShakti EPC) | `/gateway` | Vendor Code: `AKR-JOB-7K9M-SEC`<br>OTP: `369369` (or dynamic code) | Rohtak 450 kWp industrial rooftop operations, railway electrification work & RA-01 invoice |
 | **Admin Dispatcher** | `/admin/login` | Email: `dispatcher@369akruniverse.in`<br>Password: `Admin@369AKR!` | Dispatch projects, manage contractors, review audit stream, generate vendor codes |
 | **Finance Officer** | `/admin/bills` | Authenticated Admin Session | Review submitted RA bills, adjust retention & Section 194C TDS, approve payouts |
 

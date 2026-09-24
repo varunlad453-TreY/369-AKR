@@ -3,7 +3,7 @@ import { generateSecureVendorCode } from "@/lib/utils";
 
 /**
  * Enterprise In-Memory Data Store with PostgreSQL/Supabase compatibility.
- * Seeded with authentic 369 AKR UNIVERSE solar infrastructure projects across India.
+ * Seeded with authentic 369 AKR UNIVERSE multi-discipline infrastructure projects (Solar EPC, Indian Railways, BSNL OFC Telecom) across India.
  */
 
 // Initial Seed Subcontractors

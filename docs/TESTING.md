@@ -83,7 +83,7 @@ Developers and evaluators can manually verify the platform's core workflows usin
 2. **Pass Criteria**: Edge middleware intercepts and redirects (HTTP 307) to `/admin/login?redirectedFrom=%2Fadmin`.
 3. Click "Auto-Fill" and submit credentials (`dispatcher@369akruniverse.in` / `Admin@369AKR!`).
 4. **Pass Criteria**: Successfully navigates to `/admin` with `akr_admin_session` cookie set.
-5. Navigate to `/admin/jobs/new` and dispatch a test solar project.
+5. Navigate to `/admin/jobs/new` and dispatch a test infrastructure project (Solar, Railways, or BSNL OFC).
 6. Verify the job appears immediately in `/admin/jobs` and in `/admin/audit-logs`.
 
 ### Test Suite 3: RA Billing & Tax Invoice PDF Generation

@@ -1,6 +1,6 @@
 # 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)
 
-Enterprise B2B workforce orchestration, solar project dispatching, and statutory billing platform for **369 AKR UNIVERSE** — India's premier solar energy EPC (Engineering, Procurement, Construction) and utility-scale infrastructure contractor.
+Enterprise B2B workforce orchestration, multi-discipline infrastructure project dispatching, and statutory contractor billing platform for **369 AKR UNIVERSE** — a premier multi-sector Engineering, Procurement, Construction (EPC) and utility infrastructure enterprise operating across **Solar Energy & Renewable Power, Indian Railways Electrification & Infrastructure, BSNL Optical Fibre Cable (OFC) Telecom Networks, and Heavy Civil/Electrical Engineering Works**.
 
 [![Next.js](https://img.shields.io/badge/Next.js-15.1.4-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.0.0-blue?style=flat-square&logo=react)](https://react.dev/)
@@ -12,16 +12,16 @@ Enterprise B2B workforce orchestration, solar project dispatching, and statutory
 
 ## ⚡ System Overview
 
-The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** provides an end-to-end operational operating system for solar infrastructure dispatches across North and Western India. It connects corporate dispatchers and finance teams with field electrical supervisors, ensuring zero-trust site access, tamper-evident proof-of-work, and GST-compliant milestone billing.
+The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** provides an end-to-end operational operating system for multi-sector infrastructure dispatches across India. It connects corporate dispatchers and project engineering divisions with field contractors across **Solar Power Plants, Railway Corridors, BSNL OFC Telecom Routes, and Civil Sites**, ensuring zero-trust site access, tamper-evident proof-of-work, and GST-compliant milestone billing.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                                   PLATFORM SURFACE                                     │
 ├──────────────────────────────────────────┬─────────────────────────────────────────────┤
 │   SUBCONTRACTOR FIELD PORTAL             │   CENTRAL DISPATCH & ACCOUNTS PAYABLE       │
-│   - Zero-Trust 2-Step OTP Gateway        │   - Real-Time Dispatch Control Board        │
+│   - Zero-Trust 2-Step OTP Gateway        │   - Multi-Sector Dispatch Control Board     │
 │   - Geotagged Milestone Photo Uploads    │   - Modular Subcontractor Directory         │
-│   - High-Voltage Single Line Diagrams    │   - Guarded Cascading Deletion Safety       │
+│   - Engineering Blueprints & SLDs        │   - Guarded Cascading Deletion Safety       │
 │   - PWA Offline IndexedDB Vault          │   - RA Bill Review & TDS/Retention Math     │
 │   - Running Account (RA) Bill Builder    │   - Immutable PostgreSQL Audit Ledger       │
 │   - Statutory GST & Banking Profile      │   - Executive Vendor Dossier PDF Export     │
@@ -29,7 +29,13 @@ The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** provides an end-t
 ```
 
 > [!NOTE]
-> **Domain Clarification**: This platform is purpose-built for Solar EPC contractor field dispatches, blueprint distribution, geotagged proof-of-work, and GST billing. It does **not** contain network hardware discovery, network packet routing, or network topology/path trace engines.
+> **Enterprise Operational Scope**: This platform is purpose-built for enterprise infrastructure field dispatches, engineering schematic/blueprint distribution, GPS-verified proof-of-work, and GST milestone billing across AKR's core divisions:
+> - **Solar Energy & Renewable Power EPC** (Commercial/Industrial Rooftop & Utility Ground-Mount PV)
+> - **Indian Railways Infrastructure & EPC** (Track Electrification, Traction Substations & Civil Structures)
+> - **Telecom Networks & BSNL OFC** (Optical Fibre Cable HDD Trenching, Blowing, Splicing & Maintenance)
+> - **Power Transmission & Heavy Civil Infrastructure**
+> 
+> *(Note: The platform is a multi-sector workforce dispatch and EPC operations system; it does not perform IP-level network packet routing or software network topology analysis).*
 
 ---
 
@@ -42,14 +48,14 @@ The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** provides an end-t
 
 ### 2. Field Operations Portal (`/portal` & `/portal/job/[jobId]`)
 - **Interactive Work Order Stepper**: Live 5-stage dispatch progression (`assigned` ➔ `en_route` ➔ `on_site` ➔ `in_progress` ➔ `completed`).
-- **CAD Schematics & SLDs**: Instant access to Single Line Diagrams and engineering blueprints.
+- **CAD Schematics & Engineering Blueprints**: Instant access to Single Line Diagrams (SLDs), railway track alignment schematics, and optical fibre trenching route plans.
 - **Geotagged Proof-of-Work**: Live satellite GPS fix acquisition (`navigator.geolocation`) with coordinate and timestamp watermarking.
-- **DISCOM Commissioning Certificate**: Auto-generates a print-ready Grid Synchronization & Commissioning Certificate for Indian state electricity boards (DHBVN, UHBVN, JVVNL, MSEDCL).
+- **Statutory Commissioning Certificates**: Auto-generates print-ready Grid Synchronization & Commissioning Certificates for Indian state electricity boards (DHBVN, UHBVN, JVVNL, MSEDCL) and field handoff memos.
 
 ### 3. Progressive Web App (PWA) & Offline Resilience
 - **Offline Shell**: Service Worker (`public/sw.js`) precaches core assets and provides offline fallback.
-- **IndexedDB Upload Vault**: Remote rooftop proof uploads captured without cellular signal are diverted to IndexedDB (`akr-sop-offline-db` via `idb-keyval`) and automatically flushed once connectivity restores.
-- **Network Status Pill**: Global navbar widget reflecting live connection state (`● FIELD NETWORK ACTIVE` vs `⚠ ROOFTOP OFFLINE VAULT`).
+- **IndexedDB Upload Vault**: Remote field proof uploads captured without cellular signal (rural railway corridors, remote solar farms, highway OFC trenches) are diverted to IndexedDB (`akr-sop-offline-db` via `idb-keyval`) and automatically flushed once connectivity restores.
+- **Network Status Pill**: Global navbar widget reflecting live connection state (`● FIELD NETWORK ACTIVE` vs `⚠ FIELD OFFLINE VAULT`).
 
 ### 4. Running Account (RA) Billing & GST Tax Invoicing (`/portal/bills` & `/admin/bills`)
 - **Subcontractor Bill Builder**: Self-service 5-step form to create milestone RA bills with granular line items (HSN/SAC, UoM, Quantity, Rate).
@@ -82,8 +88,8 @@ The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** provides an end-t
     /(protected-admin)
       /admin                       # Central Operations KPI Dashboard
       /admin/login                 # Admin Gateway with autofill
-      /admin/jobs                  # Project Dispatches ledger
-      /admin/jobs/new              # Geotagged solar job dispatch form
+      /admin/jobs                  # Project Dispatches ledger (Solar, Railways, BSNL OFC)
+      /admin/jobs/new              # Geotagged multi-sector job dispatch form
       /admin/subcontractors        # Contractor Directory
       /admin/subcontractors/new    # Contractor Onboarding form
       /admin/bills                 # Accounts Payable & RA bill review
@@ -172,9 +178,9 @@ All 26 routes compile cleanly with zero TypeScript errors (`npx tsc --noEmit`).
 
 | Role | Access URL | Credentials | Operational Scope |
 | :--- | :--- | :--- | :--- |
-| **Solar Contractor**<br>(Swarajya Construction) | `/gateway` | Vendor Code: `AKR-1114`<br>OTP: `369369` (or dynamic code) | 350 kWp Hingoli project, blueprints, proof upload, RA bills, statutory profile |
-| **Solar Contractor**<br>(SuryaShakti EPC) | `/gateway` | Vendor Code: `AKR-JOB-7K9M-SEC`<br>OTP: `369369` (or dynamic code) | 450 kWp Rohtak industrial rooftop & RA-01 invoice |
-| **Admin Dispatcher** | `/admin/login` | Email: `dispatcher@369akruniverse.in`<br>Password: `Admin@369AKR!` | Full Dispatcher Control Plane, job creation, contractor management, audit ledger |
+| **Infrastructure Contractor**<br>(Swarajya Construction) | `/gateway` | Vendor Code: `AKR-1114`<br>OTP: `369369` (or dynamic code) | 350 kWp Hingoli Solar Project & BSNL OFC Trenching, schematics, proof upload, RA bills, statutory profile |
+| **Infrastructure Contractor**<br>(SuryaShakti EPC) | `/gateway` | Vendor Code: `AKR-JOB-7K9M-SEC`<br>OTP: `369369` (or dynamic code) | 450 kWp Rohtak Industrial Project & Railway Electrification, RA-01 invoice |
+| **Admin Dispatcher** | `/admin/login` | Email: `dispatcher@369akruniverse.in`<br>Password: `Admin@369AKR!` | Full Central Dispatch Control Plane, multi-sector project creation, contractor management, audit ledger |
 | **Finance Officer** | `/admin/bills` | Authenticated Admin Session | Accounts Payable workbench, TDS/retention adjustments, payout authorization |
 
 ---
@@ -195,7 +201,8 @@ For detailed technical specifications, consult the dedicated documentation files
 
 ## 🏢 Corporate Headquarters
 
-**369 AKR UNIVERSE SOLAR EPC PRIVATE LIMITED**  
+**369 AKR UNIVERSE INFRASTRUCTURE & EPC PRIVATE LIMITED**  
+*(Operating Divisions: Solar Power EPC • Indian Railways Electrification & Civil Infrastructure • Telecom BSNL OFC Networks • High-Voltage Substation Engineering)*  
 Plot 42, Sube Singh Complex, HSIIDC Industrial Estate, Sector 31, Rohtak, Haryana, India 124001  
 **Helpline**: +91 98120 37550 / +91 90509 37550  
 **Email**: info@369akruniverse.in | central.dispatch@369akruniverse.in  

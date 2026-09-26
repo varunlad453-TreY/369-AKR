@@ -1,0 +1,67 @@
+name: Production Quality Gate & Verification
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  NEXT_TELEMETRY_DISABLED: 1
+  # Grounded environment variables with fallback mocks for zero-leak static compilation in CI
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://gpwkxifefmygoexiepws.supabase.co' }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'mock-anon-key-ci-quality-gate' }}
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'mock-anon-key-ci-quality-gate' }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'mock-service-role-ci-quality-gate' }}
+
+jobs:
+  production-gate:
+    name: Production Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x & Cache NPM Dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Restore Next.js App Router Build Cache
+        uses: actions/cache@v4
+        with:
+          # Next.js build cache path
+          path: ${{ github.workspace }}/.next/cache
+          # Generate new cache entry on lockfile or source code change
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          # Fallback to previous lockfile cache if code changed
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+
+      - name: Install Project Dependencies (Clean Install)
+        run: npm ci --prefer-offline
+
+      - name: Static Analysis & Linting (ESLint)
+        run: npm run lint
+
+      - name: Strict Type-Safety Verification (TypeScript)
+        run: npx tsc --noEmit
+
+      - name: Automated Unit & Integration Test Suite (Vitest)
+        run: npm test
+
+      - name: Production Build & Route Compilation Verification (Next.js 15)
+        run: npm run build

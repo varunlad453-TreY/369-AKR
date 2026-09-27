@@ -125,3 +125,24 @@ If configuring a fresh Supabase PostgreSQL project, execute the SQL scripts in t
 2. **Python Subprocess Caveat**:
    - The route `GET /api/subcontractors/export-pdf` attempts to spawn a local Python process to run `scripts/generate_369_sop_vendor_dossier_pdf.py`. On standard Vercel serverless functions, Python may not be available in the runtime image unless configured via custom Docker or Nixpacks.
    - The route contains a fallback handler to serve pre-generated files if Python execution fails.
+
+---
+
+## 8. Continuous Integration & Quality Gates (CI/CD)
+
+The repository enforces enterprise-grade automated quality gates via GitHub Actions ([`.github/workflows/production-gate.yml`](../.github/workflows/production-gate.yml)) and GitHub Branch Rulesets targeting the `main` branch.
+
+### Automated Quality Gate Matrix
+Every `push` to `main` and all `pull_request` events automatically execute the following stages in Node.js 22.x LTS:
+1. **Dependency & Build Caching**: Caches `~/.npm` via `actions/setup-node@v4` and `.next/cache` via `actions/cache@v4`.
+2. **Static Analysis & Linting**: Executes `npm run lint` (ESLint with Next.js core web vitals).
+3. **Strict Type-Safety**: Executes `npx tsc --noEmit` to ensure 0 TypeScript compilation errors.
+4. **Automated Unit & Integration Testing**: Executes `npm test` running 36 passing Vitest test suites (Zod validation, cryptographic auth vault, jsPDF GST tax invoices, and vendor compliance dossiers).
+5. **Production Build Verification**: Executes `npm run build` validating that all 26 App Router routes statically compile without errors.
+
+### Branch Protection Ruleset
+The `main` branch is protected by the **Production Quality Gate** ruleset:
+- Restricts branch deletions and blocks force pushes (`git push --force`).
+- Requires a pull request before merging with automated approval dismissals on new commits.
+- Enforces that the `Production Quality Gate` status check must pass cleanly before merge.
+

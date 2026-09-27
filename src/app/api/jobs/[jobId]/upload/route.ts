@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { proofOfWorkUploadSchema } from "@/lib/zod/schemas";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { db } from "@/lib/state/mock-db";
+import { logger } from "@/lib/logger";
 
 interface Context {
   params: Promise<{ jobId: string }>;
@@ -38,20 +38,19 @@ export async function POST(req: NextRequest, { params }: Context) {
     let targetJobId = jobId;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId);
 
-    try {
-      const supabase = await createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
-      if (!isUuid) {
-        const { data: jobRecord } = await supabase
-          .from("jobs")
-          .select("id, job_code")
-          .eq("job_code", jobId)
-          .maybeSingle();
+    if (!isUuid) {
+      const { data: jobRecord } = await supabase
+        .from("jobs")
+        .select("id, job_code")
+        .eq("job_code", jobId)
+        .maybeSingle();
 
-        if (jobRecord) {
-          targetJobId = jobRecord.id;
-        }
+      if (jobRecord) {
+        targetJobId = jobRecord.id;
       }
+    }
 
     // 2. Decode and convert base64 image payload from PWA into a binary Buffer
     let fileBuffer: Buffer | null = null;
@@ -67,7 +66,10 @@ export async function POST(req: NextRequest, { params }: Context) {
         try {
           fileBuffer = Buffer.from(imagePayload, "base64");
         } catch {
-          console.warn("[Upload Proof] Failed to parse payload as raw base64");
+          logger.warn("[Upload Proof] Failed to parse payload as raw base64", {
+            jobId: targetJobId,
+            fileName,
+          });
         }
       }
     }
@@ -92,9 +94,22 @@ export async function POST(req: NextRequest, { params }: Context) {
 
         downloadUrl = publicUrlData.publicUrl;
       } else if (uploadError) {
-        console.warn(
-          "[Upload Proof] Supabase Storage upload note (Bucket configuration may be pending):",
-          uploadError.message
+        logger.error(uploadError, {
+          context: "Supabase Storage Upload Failure",
+          storagePath,
+          jobId: targetJobId,
+        });
+
+        if (process.env.NODE_ENV === "production") {
+          return NextResponse.json(
+            { success: false, error: `Storage upload failed: ${uploadError.message}` },
+            { status: 500 }
+          );
+        }
+
+        logger.warn(
+          "[Upload Proof] Supabase Storage upload note (Bucket configuration may be pending)",
+          { message: uploadError.message, storagePath }
         );
       }
     }
@@ -132,7 +147,11 @@ export async function POST(req: NextRequest, { params }: Context) {
       .single();
 
     if (docInsertError) {
-      console.error("[Upload Proof] Database insert failed:", docInsertError);
+      logger.error(docInsertError, {
+        context: "Upload Proof Database Insert Error",
+        jobId: targetJobId,
+        fileName,
+      });
       return NextResponse.json(
         { success: false, error: `Database document registration error: ${docInsertError.message}` },
         { status: 500 }
@@ -159,7 +178,10 @@ export async function POST(req: NextRequest, { params }: Context) {
         },
       });
     } catch (auditErr) {
-      console.warn("[Upload Proof] Audit log insert warning:", auditErr);
+      logger.warn("[Upload Proof] Audit log insert warning", {
+        error: String(auditErr),
+        jobId: targetJobId,
+      });
     }
 
     // 7. Map database row to application JobDocument model
@@ -179,40 +201,12 @@ export async function POST(req: NextRequest, { params }: Context) {
       createdAt: docRecord.created_at,
     };
 
-      return NextResponse.json(
-        { success: true, document: documentResponse },
-        { status: 201 }
-      );
-    } catch (supaErr) {
-      console.warn("[Upload Document Supabase Fallback to Mock DB]", supaErr);
-      const geotagData = (latitude && longitude) ? {
-        latitude,
-        longitude,
-        accuracy: accuracy ?? 5.0,
-        timestamp: new Date().toISOString(),
-        addressSnippet: notes || undefined,
-      } : undefined;
-
-      const newDoc = db.addDocument({
-        jobId: targetJobId,
-        documentType,
-        fileName,
-        fileSize: fileSize || 1024,
-        mimeType: mimeType || "image/jpeg",
-        storagePath: `proof-of-work/${targetJobId}/${Date.now()}_${fileName}`,
-        downloadUrl: body.previewUrl || "/mock-docs/proof.jpg",
-        uploadedBy: body.uploadedBy || "subcontractor-field-agent",
-        uploaderRole: body.uploaderRole === "ADMIN" ? "ADMIN" : "SUBCONTRACTOR",
-        geotag: geotagData,
-      });
-
-      return NextResponse.json(
-        { success: true, document: newDoc },
-        { status: 201 }
-      );
-    }
+    return NextResponse.json(
+      { success: true, document: documentResponse },
+      { status: 201 }
+    );
   } catch (err: unknown) {
-    console.error("[Upload Document Error]", err);
+    logger.error(err, { context: "Upload Document Error" });
     return NextResponse.json(
       { success: false, error: "Failed to upload document" },
       { status: 500 }

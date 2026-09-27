@@ -1,19 +1,19 @@
 # Project Roadmap & Delivery Status
 
-**System**: 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)  
-**Last Audited**: September 24, 2026  
-**Status**: ACTIVE CANONICAL ROADMAP  
+> **System**: 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)  
+> **Last Audited**: September 27, 2026  
+> **Status**: ACTIVE CANONICAL ROADMAP (Phases 1–7 Production Verified)  
 
 ---
 
 ## 1. Status Classification Guide
 
-To prevent ambiguity, every roadmap capability is classified under one of the following verified states:
-- **COMPLETED**: Fully implemented, compiled cleanly in production build, and operational.
-- **IN PROGRESS**: Partially implemented; active development or integration in progress.
-- **NEXT**: Prioritized for immediate implementation (current engineering sprint).
+Every roadmap capability is classified under one of the following verified states:
+- **COMPLETED**: Fully implemented, compiled cleanly in production build, covered by automated tests, and operational.
+- **IN PROGRESS**: Active implementation or integration in progress with partial codebase presence.
+- **NEXT**: Prioritized for immediate implementation (upcoming engineering sprint).
 - **PLANNED**: Architected and approved for future development horizons.
-- **BLOCKED / DEFERRED**: Dependent on external credentials/approvals or temporarily postponed.
+- **BLOCKED / DEFERRED**: Dependent on external enterprise credentials/approvals or temporarily postponed.
 - **ABANDONED**: Replaced, superseded, or deliberately removed from product scope.
 
 ---
@@ -39,9 +39,6 @@ To prevent ambiguity, every roadmap capability is classified under one of the fo
 ### 2.2 Centralized Admin Control Plane (Phase 3)
 - [x] **Modular Next.js 15 Admin Architecture**:
   - Deconstructed monolithic UI into 7 decoupled route pages (`/admin`, `/admin/jobs`, `/admin/jobs/new`, `/admin/subcontractors`, `/admin/subcontractors/new`, `/admin/bills`, `/admin/audit-logs`).
-- [x] **Server-Side Administrative Authentication**:
-  - Direct database credential verification against `public.admins` bypassing client-side Supabase Auth `email_not_confirmed` errors.
-  - Secure session management via `akr_admin_session` cookie (24-hour TTL).
 - [x] **Edge RBAC Middleware (`src/middleware.ts`)**:
   - Zero-trust edge route protection for `/admin/*` and `/portal/*`.
 - [x] **Guarded Deletion Safety Lifecycles**:
@@ -56,7 +53,7 @@ To prevent ambiguity, every roadmap capability is classified under one of the fo
 - [x] **IndexedDB Upload Vault (`src/lib/offline/sync-manager.ts`)**:
   - Diverts failed/offline proof uploads into IndexedDB (`akr-sop-offline-db`).
   - Listens for network restoration and auto-flushes queue via Background Sync API.
-  - Global navbar status pill (`NetworkStatusIndicator`).
+  - Global navbar status indicator (`NetworkStatusIndicator`).
 
 ### 2.4 Running Account (RA) Billing & GST Invoicing Engine
 - [x] **Subcontractor Bill Submission (`/portal/bills/new`)**:
@@ -70,47 +67,70 @@ To prevent ambiguity, every roadmap capability is classified under one of the fo
   - Self-service form to register GSTIN, PAN, Bank Name, Account Number, and IFSC coordinates.
 - [x] **GST Tax Invoice PDF Generator (`src/lib/pdf/invoice-generator.ts`)**:
   - Built with `jsPDF` + `jspdf-autotable`.
-  - Features dual borders, Indian currency in words (Lakhs & Crores), tax summary tables, bank disbursement coordinates, and digital hash.
-- [x] **Executive Subcontractor Empanelment Dossier PDF**:
-  - Python ReportLab pipeline (`scripts/generate_369_sop_vendor_dossier_pdf.py`) producing 1-page executive compliance certificate with vector QR code.
+  - Features dual borders, Indian currency in words (Lakhs & Crores), tax summary tables, bank disbursement coordinates, and digital verification hash.
+
+### 2.5 Security Lockdown & Native PDF Engine (Phase 4)
+- [x] **Production Database Fail-Fast Circuit**:
+  - Enforced strict Fail-Fast (HTTP 500) during Supabase degradation in production, eliminating silent RAM-state financial ledger drift.
+  - Mock DB fallback strictly restricted to local development environments (`NODE_ENV !== 'production'`).
+- [x] **Native Subcontractor Dossier Generator (`src/lib/pdf/dossier-generator.ts`)**:
+  - Decoupled Python ReportLab dependency; engineered pure TypeScript in-memory `jsPDF` vendor compliance dossier generator.
+- [x] **Automated Testing Suite**:
+  - Integrated Vitest 5 with 36 automated unit and integration tests across schemas, billing math, dossier generation, and authentication.
+
+### 2.6 Admin Identity Vault & Cryptographic Authentication (Phase 5)
+- [x] **Database Identity Vault (`supabase/migrations/20260925000000_create_admins_vault.sql`)**:
+  - Isolated `public.system_admins` table storing salted bcrypt password hashes.
+  - Constant-time dummy hash verification mitigating timing side-channel attacks and username enumeration.
+  - Account lockout tracking (`failed_login_attempts`, `locked_until`).
+- [x] **Administrative Password Hash CLI (`scripts/generate-admin-hash.js`)**:
+  - Standalone Node.js utility to generate 10-round bcrypt hashes for administrative seeding.
+
+### 2.7 CI/CD Automated Quality Gates (Phase 6)
+- [x] **GitHub Actions Pipeline (`.github/workflows/production-gate.yml`)**:
+  - 4-stage sequential automated verification: Linting -> Type-Checking -> Vitest (36 tests) -> Production Next.js Build.
+- [x] **Branch Protection Rulesets**:
+  - Enforced required pull requests, status checks, and force-push blocks on `main`.
+
+### 2.8 Full-Stack Observability & Error Boundaries (Phase 7)
+- [x] **Next.js Route Error Boundary (`src/app/error.tsx`)**:
+  - Branded 369 AKR UNIVERSE fallback card with automated incident ID tracing and client reset.
+- [x] **Root Layout Global Error Boundary (`src/app/global-error.tsx`)**:
+  - Autonomous root shell rendering custom `<html>` and `<body>` with self-contained CSS styling for catastrophic layout crashes.
+- [x] **Centralized Singleton Logger (`src/lib/logger.ts`)**:
+  - Dual-mode logger with colorized ANSI output in dev, structured single-line JSON in production (Datadog/Axiom), and native `@sentry/nextjs` exception capture guarded by `NEXT_PUBLIC_SENTRY_DSN`.
+- [x] **API Route Telemetry Refactoring (`src/app/api/bills/route.ts`)**:
+  - Replaced raw `console.error` statements with structured `logger.error(...)` capturing execution context.
 
 ---
 
 ## 3. In Progress
 
-- [ ] **Automated CI/CD Test Suite**:
-  - *Current Status*: ZERO committed automated tests exist in the codebase. Testing has historically relied on manual verification scripts and type checking.
-  - *Action*: Install Vitest and implement unit tests for Zod schemas, billing calculations, and API routes.
 - [ ] **Direct S3 Presigned URL Upload Pipeline**:
-  - *Current Status*: Proof uploads accept Base64 data and upload via server Buffer. Direct browser-to-S3 presigned URLs should be completed to handle large 4K video files without serverless memory overhead.
+  - *Current Status*: Geotagged proof uploads accept Base64 data and upload via server Buffer.
+  - *Action*: Transition to browser-to-S3 presigned URLs to handle large high-resolution installation proofs and inspection video clips without serverless payload limits.
 
 ---
 
-## 4. Next (Immediate Horizon)
+## 4. Next (Immediate Sprint Horizon)
 
-1. **Codify Automated Testing Harness**:
-   - Install `vitest`, `@testing-library/react`, and write integration tests for:
-     - Vendor OTP verification and lockout logic.
-     - RA Bill calculation math (CGST/SGST/IGST + TDS + Retention).
-     - Edge RBAC middleware route protection.
-2. **Decouple Python Dependency for Vendor PDF Export**:
-   - Re-implement the ReportLab vendor dossier generator in pure TypeScript (`jsPDF`) so that serverless environments (Vercel, AWS Lambda) do not require a separate Python 3 runtime and ReportLab package.
-3. **Provision and Restrict Supabase Storage S3 Bucket**:
-   - Configure public read policies and authenticated upload policies on the `job-documents` bucket in Supabase Cloud.
+1. **Supply Chain Asset Serialization & Barcode Scanning**:
+   - WebRTC / HTML5 barcode scanner (`html5-qrcode`) embedded in work order stepper.
+   - Enforces barcode scanning of string inverters, PV module pallets, railway catenary hardware, and BSNL OFC drums before allowing status progression to `in_progress`.
+2. **Executive GIS Fleet Dashboard ("War Room" Map)**:
+   - Target route: `/admin/fleet-map`.
+   - Leaflet / OpenStreetMap visualization with live project clustering across North & Western India (Haryana, Rajasthan, Uttar Pradesh, Maharashtra).
+3. **Automated Banking Settlement Integration**:
+   - Payout API integration (RazorpayX / Cashfree) for direct NEFT/RTGS disbursement once an RA bill is marked `approved` by accounts payable.
 
 ---
 
 ## 5. Planned (Future Horizons)
 
-1. **Executive GIS Fleet Dashboard ("War Room" Map)**:
-   - Target route: `/admin/fleet-map`.
-   - Leaflet / OpenStreetMap integration with live marker clustering across North & Western India (Haryana, Rajasthan, Uttar Pradesh, Maharashtra).
-   - Realtime CDC color-coding (`assigned`: Purple, `in_progress`: Amber pulse, `completed`: Emerald check).
-2. **Supply Chain Asset Serialization & Barcode Scanning**:
-   - WebRTC / HTML5 barcode scanner (`html5-qrcode`) embedded in work order view.
-   - Restrict status progression to `in_progress` until primary project materials (string inverters & solar PV pallets, railway catenary/substation equipment, or BSNL OFC cable drums) are scanned and validated against warehouse manifests.
-3. **Automated Banking Settlement Integration**:
-   - Integration with Indian payment payout APIs (RazorpayX / Cashfree) for direct NEFT/RTGS disbursement once an RA bill is marked `approved` or `paid`.
+1. **Mobile Push Notifications**:
+   - WebPush / FCM integration to alert field contractors when new dispatches or emergency work orders are assigned.
+2. **Automated Subcontractor KYC Verification**:
+   - Real-time GSTIN and PAN validation via Karza / Surepass APIs during contractor onboarding.
 
 ---
 
@@ -118,17 +138,17 @@ To prevent ambiguity, every roadmap capability is classified under one of the fo
 
 1. **TRAI DLT Production SMS Header**:
    - *Status*: BLOCKED on formal telecom registration of Principal Entity (PE) and Header ID (`AKRSOP`).
-   - *Mitigation*: System runs in sandbox mode, exposing generated OTP in API responses and console logs.
-2. **Push Notifications (WebPush / FCM)**:
-   - *Status*: DEFERRED until field PWA deployment is fully adopted by partner firms.
+   - *Mitigation*: System runs in safe sandbox mode, exposing generated OTP in API responses and console logs.
 
 ---
 
 ## 7. Abandoned Approaches
 
-1. **Monolithic Admin Component**:
-   - *Reason*: Single 940-line `admin/page.tsx` was unmaintainable, slow to re-render, and prone to state race conditions. Extracted into 7 modular Next.js routes.
-2. **Supabase Auth SDK for Internal Admin Staff**:
-   - *Reason*: Supabase Auth's mandatory email confirmation requirement failed for internal non-mailserver domains (`@369akruniverse.in`), returning unhandled `email_not_confirmed` errors. Replaced with server-side credential verification against `public.admins`.
-3. **Static HTML/CSS Export**:
-   - *Reason*: Static marketing site had zero operational capability, unencrypted file distribution, and no contractor authentication. Fully superseded by Next.js 15 App Router.
+1. **Python ReportLab Subprocess for Vendor PDF Dossiers**:
+   - *Reason*: Spawning an external Python 3 process with ReportLab created serverless deployment failures on Vercel/AWS Lambda. Superseded by pure in-memory `jsPDF` engine ([`src/lib/pdf/dossier-generator.ts`](file:///g:/369/src/lib/pdf/dossier-generator.ts)).
+2. **Plaintext In-Memory Admin Credential Array**:
+   - *Reason*: Hardcoding admin credentials in application source code created severe security risks. Superseded by `public.system_admins` cryptographic vault with bcryptjs.
+3. **Silent RAM-State Database Fallback in Production**:
+   - *Reason*: Transparent fallback to RAM state masked database outages and caused silent financial ledger drift. Superseded by strict Fail-Fast HTTP 500 circuit breaker in production.
+4. **Monolithic Admin Component**:
+   - *Reason*: Single 940-line `admin/page.tsx` was unmaintainable and prone to state race conditions. Superseded by 7 modular Next.js routes.

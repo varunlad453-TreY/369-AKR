@@ -3,6 +3,7 @@ import { billCreationSchema } from "@/lib/zod/schemas";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Bill, BillItem, BillStatus } from "@/types";
 import { db } from "@/lib/state/mock-db";
+import { logger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
@@ -60,14 +61,14 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error("[Get Bills Supabase Error]", error);
+      logger.error(error, { context: "Get Bills Supabase Error" });
       if (process.env.NODE_ENV === "production") {
         return NextResponse.json(
           { success: false, error: "Database service unavailable. Unable to retrieve bills." },
           { status: 500 }
         );
       }
-      console.warn("[Get Bills Supabase Fallback to Mock DB in development]", error.message);
+      logger.warn("[Get Bills Supabase Fallback to Mock DB in development]", { message: error.message });
       const mockBills = db.getBills(
         subcontractorId || undefined,
         jobId || undefined,
@@ -163,14 +164,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, bills });
   } catch (err: unknown) {
-    console.error("[Get Bills API Error]", err);
+    logger.error(err, { context: "Get Bills API Error" });
     if (process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { success: false, error: "Internal Server Error. Failed to retrieve bills." },
         { status: 500 }
       );
     }
-    console.warn("[Get Bills - Fallback to Mock DB in development]", err);
+    logger.warn("[Get Bills - Fallback to Mock DB in development]", { error: String(err) });
     const { searchParams } = new URL(req.url);
     const subcontractorId = searchParams.get("subcontractorId");
     const jobId = searchParams.get("jobId");
@@ -293,7 +294,7 @@ export async function POST(req: NextRequest) {
 
       // Fail fast in production: do NOT fall back to RAM DB to prevent silent financial data loss
       if (process.env.NODE_ENV === "production") {
-        console.error("[Supabase Insert Bill Production Failure]", billError);
+        logger.error(billError, { context: "Supabase Insert Bill Production Failure" });
         return NextResponse.json(
           {
             success: false,
@@ -303,7 +304,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      console.warn("[Supabase Insert Bill Fallback to Mock DB in development]", billError?.message);
+      logger.warn("[Supabase Insert Bill Fallback to Mock DB in development]", { message: billError?.message });
       const createdBill = db.createBill(
         {
           jobId,
@@ -351,7 +352,7 @@ export async function POST(req: NextRequest) {
       .select();
 
     if (itemsError) {
-      console.error("[Supabase Insert Bill Items Error]", itemsError);
+      logger.error(itemsError, { context: "Supabase Insert Bill Items Error" });
       // Clean up orphaned bill header on failure
       await supabase.from("bills").delete().eq("id", billData.id);
       return NextResponse.json(
@@ -376,7 +377,7 @@ export async function POST(req: NextRequest) {
         },
       });
     } catch (auditErr) {
-      console.warn("[Audit Log Insert Warning]", auditErr);
+      logger.warn("[Audit Log Insert Warning]", { error: String(auditErr) });
     }
 
     const createdBill: Bill = {
@@ -417,7 +418,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, bill: createdBill }, { status: 201 });
   } catch (err: unknown) {
-    console.error("[Create Bill API Error]", err);
+    logger.error(err, { context: "Create Bill" });
     return NextResponse.json(
       { success: false, error: "Failed to generate running account bill" },
       { status: 500 }

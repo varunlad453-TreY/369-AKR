@@ -1,8 +1,8 @@
 # Data Flow & Security Specification
 
-**System**: 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)  
-**Last Audited**: September 24, 2026  
-**Status**: ACTIVE CANONICAL DATA FLOW SPECIFICATION  
+> **System**: 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)  
+> **Last Audited**: September 27, 2026  
+> **Status**: ACTIVE CANONICAL DATA FLOW SPECIFICATION  
 
 ---
 
@@ -16,7 +16,7 @@
     POST /api/auth/vendor-login
           │
           ├─► Zod Validation (vendorCodeVerificationSchema)
-          ├─► Query public.subcontractors (or mock-db.ts fallback)
+          ├─► Query public.subcontractors (or mock-db.ts fallback in dev)
           ├─► Check otp_rate_limits (Max 5 requests per 10 mins)
           ├─► Generate 6-digit cryptographic OTP & compute SHA-256 hash
           ├─► Save otp_hash in database / fallback store
@@ -75,7 +75,7 @@ POST /api/jobs/[jobId]/upload                           Enqueued in IndexedDB Va
 
 ---
 
-## 3. Flow 3: Running Account (RA) Billing & Tax Invoice Generation
+## 3. Flow 3: Running Account (RA) Billing & Fail-Fast Tax Engine
 
 ```
 [Subcontractor: /portal/bills/new]
@@ -90,11 +90,19 @@ POST /api/jobs/[jobId]/upload                           Enqueued in IndexedDB Va
           │     CGST 9% + SGST 9% (or IGST 18%)
           │     Gross Total = Subtotal + Taxes
           │     Initial Net Payable = Gross Total (0 deductions until verified)
-          ├─► Insert header into public.bills
-          ├─► Insert lines atomically into public.bill_items
-          ├─► Record 'BILL_SUBMITTED' in public.audit_logs
           │
-          ▼ Returns HTTP 201 Created
+          ├─► Attempt Insert into public.bills and public.bill_items
+          │     │
+          │     ├─► [Supabase Degraded / Offline in Production]:
+          │     │     logger.error(err, { context: "Create Bill" })
+          │     │     Sentry captures exception & telemetry emitted
+          │     │     FAIL-FAST: Abort transaction and return HTTP 500
+          │     │     (RAM-state fallback blocked to prevent ledger corruption)
+          │     │
+          │     └─► [Success]:
+          │           Record 'BILL_SUBMITTED' in public.audit_logs
+          │           Return HTTP 201 Created
+          ▼
 [Finance Team Review: /admin/bills/[billId]]
           │
           │ 2. Inspect line items and contractor statutory GSTIN/PAN
@@ -148,4 +156,62 @@ Return HTTP 409 Conflict                                Delete from public.subco
 "Cannot delete: Contractor has active projects.         Record 'SUBCONTRACTOR_DELETED'
 Reassign or complete those jobs first."                 in public.audit_logs
                                                         Return HTTP 200 OK
+```
+
+---
+
+## 5. Flow 5: Admin Identity Vault & Cryptographic Authentication
+
+```
+[Admin Dispatcher: /admin/login]
+          │
+          │ 1. Enter email/username & password
+          ▼
+    POST /api/auth/admin-login
+          │
+          ├─► Query public.system_admins using privileged service_role client
+          │
+     Account Record Exists?
+    ┌─────┴────────────────────────────────────────────────────────┐
+    │                                                              │
+  [YES]                                                          [NO]
+    │                                                              │
+    ├─► Check account lockout (locked_until > NOW())               │
+    ├─► bcrypt.compare(password, record.password_hash)             ├─► Execute constant-time dummy:
+    │                                                              │   bcrypt.compare(password, DUMMY_HASH)
+    ├─► [Match]: Reset failed_login_attempts                       │
+    │   Issue akr_admin_session cookie (24h TTL)                   └─► Return HTTP 401
+    │   Record 'ADMIN_LOGIN_SUCCESS' in audit_logs                     "Invalid credentials"
+    │   Return HTTP 200 OK + redirect /admin                           (Identical execution time)
+    │
+    └─► [Mismatch]: Increment failed_login_attempts
+        If >= 5: Set locked_until = NOW() + 15 mins
+        Record 'ADMIN_LOGIN_FAILED' in audit_logs
+        Return HTTP 401 "Invalid credentials"
+```
+
+---
+
+## 6. Flow 6: Full-Stack Observability & Error Boundary Lifecycle
+
+```
+[User Browser Session]
+          │
+     Unhandled Exception Occurs
+    ┌─────┴────────────────────────────────────────────────────────┐
+    │                                                              │
+[Inside Route Segment Component]                               [Root Layout Crash]
+    │                                                              │
+    ▼                                                              ▼
+src/app/error.tsx Catches Error                                src/app/global-error.tsx Catches Error
+    │                                                              │
+    ├─► Extracts error.digest / generates incidentId               ├─► Extracts error.digest & marks isFatal=true
+    ├─► Invokes logger.error(...) in useEffect                     ├─► Invokes logger.error(...) in useEffect
+    │     ├─► Production: Dispatches to Sentry DSN                 │     ├─► Dispatches to Sentry DSN
+    │     └─► Structured JSON to stdout for Datadog                │     └─► Structured JSON to stdout
+    │                                                              │
+    ▼ Renders Branded 369 AKR UNIVERSE Card                        ▼ Renders Autonomous <html><body> Shell
+    "System degraded. Our dispatch team has been notified."        Self-contained dark CSS styling
+    Incident ID displayed with 1-click clipboard copy              Recovery button: Attempt System Recovery
+    Actions: [Retry Route] [Reload App] [Gateway]                  Hard refresh button: Return to Gateway
 ```

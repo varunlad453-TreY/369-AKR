@@ -1,38 +1,45 @@
-# Testing & Verification Specification
+# Testing & Quality Verification Specification
 
-**System**: 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)  
-**Last Audited**: September 24, 2026  
-**Status**: ACTIVE CANONICAL TESTING AUDIT  
+> **System**: 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)  
+> **Last Audited**: September 27, 2026  
+> **Status**: ACTIVE CANONICAL TESTING SPECIFICATION (Vitest 5 · 4 Committed Test Suites · 36 Tests · CI/CD Enforced)  
 
 ---
 
-## 1. Truth in Testing: Current Codebase Reality
+## 1. Automated Testing Architecture & Harness
 
-> [!WARNING]
-> **Technical Debt & Verification Gap**:  
-> Previous handoff documents (Phase 1 and Phase 3) reported *"100% API Integration Tests Passing"*. A forensic inspection of the codebase reveals that **zero automated test files or test suites currently exist in the repository**.  
-> The tests referenced in historical handoffs were executed as ephemeral CLI scratch scripts and were never committed to git or integrated into `package.json`.
+The repository enforces enterprise-grade automated testing using **Vitest 5** (`vitest.config.ts`), `@testing-library/react`, and `@testing-library/jest-dom`. All tests execute locally via `npm test` and are strictly verified in cloud continuous integration via GitHub Actions ([`.github/workflows/production-gate.yml`](file:///g:/369/.github/workflows/production-gate.yml)).
 
-### Current `package.json` Scripts
+### Current `package.json` Test Scripts
 ```json
 "scripts": {
   "dev": "next dev --turbo",
   "dev:webpack": "next dev",
   "build": "next build",
   "start": "next start",
-  "lint": "next lint"
+  "lint": "eslint .",
+  "test": "vitest run"
 }
 ```
-There is **no** `test` script, and no testing framework (such as Vitest, Jest, Playwright, or Cypress) is currently installed in `dependencies` or `devDependencies`.
+
+### Committed Test Suites & Coverage Inventory
+
+| Test Suite File | Domain / Subsystem | Test Count | Scope of Verification |
+| :--- | :--- | :---: | :--- |
+| [`src/lib/zod/schemas.test.ts`](file:///g:/369/src/lib/zod/schemas.test.ts) | Runtime Data Contracts | **12** | Validates Indian mobile numbers (`+91` and 10-digit), 15-char GSTINs, 10-char PANs, Vendor Codes (`AKR-xxxx`), 6-digit OTP, and 6-digit PIN codes. |
+| [`src/lib/pdf/invoice-generator.test.ts`](file:///g:/369/src/lib/pdf/invoice-generator.test.ts) | Financial & Statutory Math | **17** | Validates Intra-state (9% CGST + 9% SGST) vs Inter-state (18% IGST), Section 194C TDS (1% vs 2%), Retention (5% and 10%), fractional paise rounding, Lakhs & Crores currency in words, and `jsPDF` binary buffer generation. |
+| [`src/lib/pdf/dossier-generator.test.ts`](file:///g:/369/src/lib/pdf/dossier-generator.test.ts) | Vendor KYC Dossier | **2** | Validates pure in-memory `jsPDF` rendering of institutional vendor dossiers, banking tables, and fallback defaults without Python/OS runtime dependencies. |
+| [`src/lib/auth/admin-auth.test.ts`](file:///g:/369/src/lib/auth/admin-auth.test.ts) | Cryptographic Authentication | **5** | Validates `bcryptjs` password hashing (salt rounds: 10/12), SuperAdmin credential verification, constant-time dummy hash execution for non-existent users (timing attack mitigation), and session cookie structure. |
+| **Total Automated Tests** | | **36** | **100% Passing in Node.js 22.x LTS** |
 
 ---
 
-## 2. Active Quality Assurance Gates
+## 2. Compile-Time & Runtime Quality Assurance Gates
 
-While automated unit and end-to-end test runners are absent, the application currently relies on four robust compile-time and runtime validation gates:
+Beyond automated test suites, the codebase is guarded by four layered verification mechanisms:
 
 ### 2.1 Static Type Safety (`tsc --noEmit`)
-- The workspace enforces strict TypeScript 5.7 compilation across all 26 App Router routes, server components, and API route handlers.
+- Strict TypeScript 5.7 compilation across all App Router routes, server components, and API route handlers.
 - **Verification Command**:
   ```bash
   npx tsc --noEmit
@@ -45,19 +52,19 @@ While automated unit and end-to-end test runners are absent, the application cur
   ```bash
   npm run build
   ```
-- **Current Result**: `Exit Code 0` (26/26 static and dynamic pages compile cleanly).
+- **Current Result**: `Exit Code 0` (All 26 static and dynamic pages compile cleanly).
 
 ### 2.3 Runtime Zod Schema Guardrails (`src/lib/zod/schemas.ts`)
 Every API endpoint and user-facing form validates payloads against strict Zod schemas before database execution:
-- `vendorCodeVerificationSchema`: Enforces Base32/alphanumeric code format.
-- `otpVerificationSchema`: Enforces exactly 6 numeric digits.
-- `jobCreationSchema`: Enforces flat geodetic WGS84 GPS coordinates (`gpsLat`, `gpsLng`), 6-digit Indian PIN codes, and positive capacity values.
+- `vendorCodeVerificationSchema`: Enforces alphanumeric format and minimum length.
+- `otpVerificationSchema`: Enforces strictly 6 numeric digits.
+- `jobCreationSchema`: Enforces geodetic WGS84 GPS coordinates (`gpsLat`, `gpsLng`), 6-digit Indian PIN codes, and positive capacity values.
 - `subcontractorProfileSchema`: Enforces 15-character Indian GSTIN format, 10-character PAN format, and 11-character IFSC codes.
 - `billCreationSchema`: Enforces line item descriptions, HSN/SAC codes, positive quantities, and valid tax classifications (`INTRA_STATE` vs `INTER_STATE`).
-- `adminBillUpdateSchema`: Restricts bill status transitions and caps retention/TDS percentages to valid 0-100 ranges.
+- `adminBillUpdateSchema`: Restricts bill status transitions and caps retention/TDS percentages to valid 0–100 ranges.
 
 ### 2.4 Server-Side Mathematical Computation
-- In the RA Billing pipeline (`/api/bills` and `/api/bills/[billId]`), client-submitted monetary totals are completely ignored.
+- In the RA Billing pipeline ([`/api/bills`](file:///g:/369/src/app/api/bills/route.ts) and [`/api/bills/[billId]`](file:///g:/369/src/app/api/bills/[billId]/route.ts)), client-submitted monetary totals are completely ignored.
 - The server re-calculates all values from primary line items:
   $$\text{Subtotal} = \sum (\text{Quantity} \times \text{Rate})$$
   $$\text{CGST} = \text{Subtotal} \times 0.09, \quad \text{SGST} = \text{Subtotal} \times 0.09 \quad (\text{or } \text{IGST} = \text{Subtotal} \times 0.18)$$
@@ -68,7 +75,7 @@ Every API endpoint and user-facing form validates payloads against strict Zod sc
 
 ## 3. Manual Verification Workflows
 
-Developers and evaluators can manually verify the platform's core workflows using the following procedures:
+Developers and field auditors can manually verify the platform's core workflows using the following procedures:
 
 ### Test Suite 1: Subcontractor Gateway & Session Verification
 1. Open `http://localhost:3000/gateway`.
@@ -98,27 +105,26 @@ Developers and evaluators can manually verify the platform's core workflows usin
 
 ---
 
-## 4. Blueprint for Automated Test Suite (Priority 1)
+## 4. Continuous Integration & Quality Gate Enforcement
 
-To transition this codebase to true enterprise maturity, the following automated testing harness should be implemented:
+Every pull request and push to the `main` branch is evaluated against the following strict automated sequence in GitHub Actions ([`.github/workflows/production-gate.yml`](file:///g:/369/.github/workflows/production-gate.yml)):
 
-```bash
-# Recommended dependencies to install
-npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom supertest
 ```
-
-### Proposed Test File Structure
-```text
-tests/
-├── unit/
-│   ├── invoice-generator.test.ts    # Verify numberToIndianWords & PDF buffer generation
-│   ├── zod-schemas.test.ts          # Test GPS coordinates, GSTIN, PAN, and phone validators
-│   └── mock-db.test.ts              # Test in-memory singleton operations & rate limiter
-├── integration/
-│   ├── auth-vendor-gateway.test.ts  # Test rate limiting, OTP hashing, and session issuance
-│   ├── auth-admin.test.ts           # Test admin login, session cookies, and logout
-│   ├── jobs-lifecycle.test.ts       # Test job creation, status progression, and delete cascades
-│   └── bills-pipeline.test.ts       # Test bill submission, tax math, and status approval
-└── e2e/
-    └── portal-flow.spec.ts          # Playwright browser flow for PWA & offline vault
+[PR / Push to main]
+        │
+        ▼
+Gate 1: ESLint Static Analysis (`npm run lint`)
+        │
+        ▼
+Gate 2: Strict Type-Check (`npx tsc --noEmit`)
+        │
+        ▼
+Gate 3: Vitest Automated Test Harness (`npm test` — 36 Tests)
+        │
+        ▼
+Gate 4: Next.js Production Route Compilation (`npm run build`)
+        │
+        ▼
+[Merge Permitted / Code Deployed]
 ```
+If any stage fails, merging is blocked automatically by branch rulesets.

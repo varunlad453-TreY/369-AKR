@@ -7,12 +7,14 @@ Enterprise workforce orchestration, multi-discipline infrastructure project disp
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4.17-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL_15+-3ECF8E?style=flat-square&logo=supabase)](https://supabase.com/)
+[![Vitest](https://img.shields.io/badge/Vitest-5.0.1-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Sentry](https://img.shields.io/badge/Sentry-11.0.0-362D59?style=flat-square&logo=sentry)](https://sentry.io/)
 
 ---
 
 ## System Overview
 
-The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** delivers a unified operational control system for infrastructure execution across India. The platform integrates corporate dispatchers, engineering divisions, and accounts payable with field contractors across **Solar Power Plants, Railway Corridors, BSNL OFC Routes, and Substation Construction Sites**, enforcing zero-trust site credentials, tamper-evident field proof-of-work, and GST-compliant milestone billing.
+The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** delivers a unified operational control system for infrastructure execution across India. The platform integrates corporate dispatchers, engineering divisions, and accounts payable with field contractors across **Solar Power Plants, Railway Corridors, BSNL OFC Routes, and Substation Construction Sites**, enforcing zero-trust site credentials, tamper-evident field proof-of-work, GST-compliant milestone billing, and resilient full-stack observability.
 
 ```
 +----------------------------------------------------------------------------------------+
@@ -20,11 +22,12 @@ The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** delivers a unifie
 +------------------------------------------+---------------------------------------------+
 |   SUBCONTRACTOR FIELD PORTAL             |   CENTRAL DISPATCH & ACCOUNTS PAYABLE       |
 |   - Zero-Trust 2-Step OTP Gateway        |   - Multi-Sector Dispatch Control Board     |
-|   - Geotagged Milestone Photo Uploads    |   - Modular Subcontractor Directory         |
-|   - Engineering Blueprints & SLDs        |   - Guarded Cascading Deletion Safety       |
+|   - Geotagged Milestone Photo Uploads    |   - Admin Identity Vault (bcryptjs)         |
+|   - Engineering Blueprints & CAD SLDs    |   - Guarded Cascading Deletion Safety       |
 |   - PWA Offline IndexedDB Vault          |   - RA Bill Review & TDS/Retention Math     |
 |   - Running Account (RA) Bill Builder    |   - Immutable PostgreSQL Audit Ledger       |
-|   - Statutory GST & Banking Profile      |   - Executive Vendor Dossier PDF Export     |
+|   - Route Error Boundary (error.tsx)     |   - Executive Vendor Dossier PDF (jsPDF)    |
+|   - Statutory GST & Banking Profile      |   - CI/CD Quality Gates & Sentry Telemetry  |
 +------------------------------------------+---------------------------------------------+
 ```
 
@@ -65,80 +68,75 @@ The **369 AKR UNIVERSE Subcontractor Operations Portal (SOP)** delivers a unifie
 
 ### 5. Centralized Modular Admin Control Plane (`/admin/*`)
 - **Operations Overview (`/admin`)**: Real-time KPI telemetry (capacity under execution, active dispatches, partner count).
+- **Admin Identity Vault**: Cryptographic authentication verifying credentials against `public.system_admins` with salted `bcryptjs` hashing, constant-time dummy hash verification, and account lockout tracking.
 - **Project Dispatches (`/admin/jobs` & `/admin/jobs/new`)**: Full dispatch ledger with geodetic WGS84 GPS coordinate validation and guarded cascading deletion.
-- **Subcontractor Directory (`/admin/subcontractors` & `/admin/subcontractors/new`)**: Contractor onboarding, 1-click vendor code regeneration, and conflict-guarded deletion (`HTTP 409 Conflict` if active jobs exist).
+- **Subcontractor Directory (`/admin/subcontractors` & `/admin/subcontractors/new`)**: Contractor onboarding, 1-click vendor code regeneration, conflict-guarded deletion (`HTTP 409 Conflict`), and native in-memory `jsPDF` vendor dossier generation (`src/lib/pdf/dossier-generator.ts`).
 - **Security Audit Stream (`/admin/audit-logs`)**: Immutable chronological ledger tracking all administrative actions, logins, status transitions, dispatches, and deletions with IST timestamps and client IP addresses.
+
+### 6. Full-Stack Observability & Error Boundaries
+- **Route Error Boundary (`src/app/error.tsx`)**: Isolates route crashes, displays a branded **369 AKR UNIVERSE** fallback UI informing the user that *"System degraded. Our dispatch team has been notified."*, displays an incident hash, and provides retry actions.
+- **Root Layout Global Error Boundary (`src/app/global-error.tsx`)**: Replaces the root layout upon catastrophic layout crashes with an autonomous `<html><body>` shell and self-contained dark styling.
+- **Centralized Singleton Logger (`src/lib/logger.ts`)**: Pretty-prints in development, outputs structured single-line JSON in production for Datadog/Axiom ingestion, and dispatches exceptions to Sentry (`@sentry/nextjs`) guarded by `NEXT_PUBLIC_SENTRY_DSN`.
+- **Production Fail-Fast Database Circuit**: In production (`NODE_ENV === 'production'`), API route handlers abort transactions and return HTTP 500 when Supabase is unreachable, strictly blocking fallback to RAM state to protect financial ledgers.
+
+### 7. Automated Quality Gates & CI/CD Pipeline
+- **GitHub Actions Pipeline (`.github/workflows/production-gate.yml`)**: Automated sequential quality gates on Node 22 LTS:
+  1. ESLint Static Analysis (`npm run lint`)
+  2. Strict TypeScript Compilation (`npx tsc --noEmit`)
+  3. Vitest Automated Test Harness (`npm test` — 36 unit and integration tests)
+  4. Next.js Production Route Compilation (`npm run build`)
+- **GitHub Branch Protection Rulesets**: Enforces required pull requests and passing status checks before merging to `main`.
 
 ---
 
 ## Directory Structure
 
 ```text
-/src
-  /app
-    /(public)
-      /gateway                     # Step 1: Vendor Code Entry
-      /gateway/verify              # Step 2: SMS OTP Verification
-    /(protected-subcontractor)
-      /portal                      # Subcontractor Operations Dashboard
-      /portal/job/[jobId]          # Work order, CAD schematics, Geotagged proofs
-      /portal/bills                # Subcontractor RA Invoices list
-      /portal/bills/new            # Subcontractor 5-step Bill Builder
-      /portal/profile              # Subcontractor GSTIN, PAN, and Bank profile
-    /(protected-admin)
-      /admin                       # Central Operations KPI Dashboard
-      /admin/login                 # Admin Gateway with autofill
-      /admin/jobs                  # Project Dispatches ledger (Solar, Railways, BSNL OFC)
-      /admin/jobs/new              # Geotagged multi-sector job dispatch form
-      /admin/subcontractors        # Contractor Directory
-      /admin/subcontractors/new    # Contractor Onboarding form
-      /admin/bills                 # Accounts Payable & RA bill review
-      /admin/bills/[billId]        # Bill Review & TDS/retention adjustment
-      /admin/audit-logs            # Immutable Security Audit Ledger
-    /api
-      /auth/vendor-login           # Step 1: Code check & OTP dispatch
-      /auth/verify-otp             # Step 2: OTP verification & session issuance
-      /auth/admin-login            # Server-side admin verification
-      /auth/admin-logout           # Admin session invalidation
-      /jobs                        # Job listing & creation
-      /jobs/[jobId]                # Guarded job deletion (cascade)
-      /jobs/[jobId]/status         # Status progression + auto DISCOM trigger
-      /jobs/[jobId]/upload         # Geotagged proof upload (S3 / base64)
-      /jobs/[jobId]/commissioning-report # Printable DISCOM certificate
-      /subcontractors              # Subcontractor listing & onboarding
-      /subcontractors/[id]         # Guarded contractor offboarding (HTTP 409)
-      /subcontractors/[id]/profile # Statutory profile update (GSTIN/PAN/Bank)
-      /subcontractors/[id]/regenerate-code # Cryptographic code rotation
-      /subcontractors/export-pdf   # Python ReportLab vendor dossier generator
-      /bills                       # RA Bills query & submission
-      /bills/[billId]              # Bill review & deduction updates
-      /bills/[billId]/pdf          # Download official GST Tax Invoice PDF
-      /audit-logs                  # Security audit ledger query stream
-  /components                      # Corporate UI components, PWA status, layouts
-  /lib
-    /auth/                         # Session helpers & OTP store
-    /offline/sync-manager.ts       # IndexedDB upload vault & sync logic
-    /pdf/invoice-generator.ts      # jsPDF GST Tax Invoice generator
-    /sms/sender.ts                 # DLT SMS sender abstraction
-    /state/mock-db.ts              # In-memory dual-layer database fallback
-    /supabase/                     # Supabase SSR browser & server clients
-    /utils.ts                      # Cryptographic code generators & formatters
-    /zod/schemas.ts                # Runtime Zod validation schemas
-  /types/index.ts                  # Global TypeScript interfaces
-  /middleware.ts                   # Edge RBAC middleware for /admin/* & /portal/*
-/supabase
-  schema.sql                       # Core schema, RLS, & audit triggers (347 lines)
-  migration_ra_billing.sql         # RA Billing tables, enum, & triggers (257 lines)
-/scripts
-  generate_369_sop_vendor_dossier_pdf.py # ReportLab Python script for vendor dossiers
-/docs                              # Canonical documentation suite
-  ARCHITECTURE.md                  # Comprehensive architectural specification
-  API.md                           # Exhaustive 23-endpoint API reference
-  ROADMAP.md                       # Current roadmap & delivery status
-  SETUP_AND_DEPLOYMENT.md          # Local setup & production runbook
-  TESTING.md                       # Testing audit & verification blueprints
-  DATA_FLOW_AND_SECURITY.md        # End-to-end operational data flows
-  /archive/                        # Historical milestone handoffs (Phases 1-3)
+/
+├── .github/
+│   └── workflows/
+│       └── production-gate.yml      # CI/CD Quality Gate Pipeline
+├── docs/                            # Canonical technical documentation
+│   ├── ARCHITECTURE.md              # System architecture specification
+│   ├── API.md                       # Complete 19-route-file API reference
+│   ├── ROADMAP.md                   # Current roadmap & delivery status
+│   ├── SETUP_AND_DEPLOYMENT.md      # Local setup & production runbook
+│   ├── TESTING.md                   # Testing audit & verification specification
+│   ├── DATA_FLOW_AND_SECURITY.md    # End-to-end operational data flows
+│   ├── WALKTHROUGH_ADMIN_IDENTITY_VAULT.md # Phase 5 Security Walkthrough
+│   ├── WALKTHROUGH_CI_CD_PIPELINE.md       # Phase 6 CI/CD Walkthrough
+│   └── Handoff/                     # Historical milestone handoff records (Phases 1-6)
+├── public/                          # Static assets, logos, and PWA service worker
+├── scripts/
+│   └── generate-admin-hash.js       # CLI utility to generate bcrypt password hashes
+├── src/
+│   ├── app/
+│   │   ├── error.tsx                # Route-level error boundary with branded fallback UI
+│   │   ├── global-error.tsx         # Root layout fatal crash isolation
+│   │   ├── layout.tsx               # Root layout with PWA provider and navigation
+│   │   ├── page.tsx                 # Portal landing page
+│   │   ├── (public)/                # Zero-trust login gateway (/gateway, /gateway/verify)
+│   │   ├── (protected-subcontractor)/ # Subcontractor operations portal (/portal/*)
+│   │   ├── (protected-admin)/       # Central operations control plane (/admin/*)
+│   │   └── api/                     # 19 Next.js Route Handlers
+│   ├── components/                  # UI components, navbar, footer, PWA indicators
+│   ├── lib/
+│   │   ├── auth/                    # Session helpers, OTP store, admin auth tests
+│   │   ├── logger.ts                # Centralized singleton logger with Sentry integration
+│   │   ├── offline/sync-manager.ts  # IndexedDB upload vault & sync logic
+│   │   ├── pdf/                     # jsPDF GST invoice & vendor dossier generators + tests
+│   │   ├── sms/sender.ts            # DLT SMS sender abstraction
+│   │   ├── state/mock-db.ts         # In-memory local development fallback store
+│   │   ├── supabase/                # Supabase browser, server, and admin clients
+│   │   ├── utils.ts                 # Cryptographic code generators & formatters
+│   │   └── zod/schemas.ts           # Runtime Zod validation schemas + tests
+│   ├── middleware.ts                # Edge RBAC middleware for /admin/* & /portal/*
+│   └── types/index.ts               # Global TypeScript interfaces
+└── supabase/
+    ├── schema.sql                   # Core schema, RLS, & audit triggers
+    ├── migration_ra_billing.sql     # RA Billing tables, enum, & triggers
+    └── migrations/
+        └── 20260925000000_create_admins_vault.sql # Admin Identity Vault table & RLS
 ```
 
 ---
@@ -157,20 +155,26 @@ Copy `.env.example` to `.env.local`:
 ```bash
 cp .env.example .env.local
 ```
-*(Pre-configured with live Supabase project `gpwkxifefmygoexiepws.supabase.co`).*
 
-### 3. Launch Development Instance
+### 3. Run Automated Tests
+```bash
+npm test
+```
+Executes all 36 passing Vitest unit and integration tests.
+
+### 4. Launch Development Instance
 ```bash
 npm run dev
 ```
 Access the application at [http://localhost:3000](http://localhost:3000).
 
-### 4. Build for Production Execution
+### 5. Build for Production Execution
 ```bash
+npx tsc --noEmit
 npm run build
 npm run start -- -p 3000
 ```
-All 26 routes compile deterministically with zero TypeScript errors (`npx tsc --noEmit`).
+All routes compile deterministically with zero TypeScript errors.
 
 ---
 
@@ -193,9 +197,11 @@ For detailed technical specifications, consult the dedicated documentation files
 - [API Reference Specification](file:///g:/369/docs/API.md)
 - [Project Roadmap & Delivery Status](file:///g:/369/docs/ROADMAP.md)
 - [Setup & Deployment Runbook](file:///g:/369/docs/SETUP_AND_DEPLOYMENT.md)
-- [Testing & Quality Verification Audit](file:///g:/369/docs/TESTING.md)
+- [Testing & Quality Verification Specification](file:///g:/369/docs/TESTING.md)
 - [Data Flow & Security Architecture](file:///g:/369/docs/DATA_FLOW_AND_SECURITY.md)
-- [Historical Milestone Archive](file:///g:/369/docs/archive/)
+- [Walkthrough: Admin Identity Vault](file:///g:/369/docs/WALKTHROUGH_ADMIN_IDENTITY_VAULT.md)
+- [Walkthrough: CI/CD Pipeline & Automated Quality Gates](file:///g:/369/docs/WALKTHROUGH_CI_CD_PIPELINE.md)
+- [Historical Milestone Handoff Archive](file:///g:/369/docs/Handoff/)
 
 ---
 

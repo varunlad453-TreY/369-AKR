@@ -1,8 +1,8 @@
 # Setup & Deployment Guide
 
-**System**: 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)  
-**Last Audited**: September 24, 2026  
-**Status**: ACTIVE CANONICAL SETUP GUIDE  
+> **System**: 369 AKR UNIVERSE — Subcontractor Operations Portal (SOP)  
+> **Last Audited**: September 27, 2026  
+> **Status**: ACTIVE CANONICAL SETUP & DEPLOYMENT GUIDE (Node 22 LTS · Supabase PostgreSQL 15+ · Pure TypeScript Serverless)  
 
 ---
 
@@ -10,14 +10,10 @@
 
 Before installing the application, ensure your environment meets the following specifications:
 
-- **Node.js**: `v20.x` or `v22.x` (LTS recommended). Compatible with `v18.17+`.
+- **Node.js**: `v20.x` or `v22.x` (LTS recommended, matching `.github/workflows/production-gate.yml`).
 - **npm**: `v10.x` or higher.
 - **Git**: For version control operations.
-- **Python 3.x** *(Optional)*: Required only if running the Subcontractor KYC Empanelment Dossier script (`scripts/generate_369_sop_vendor_dossier_pdf.py`) with `reportlab` installed:
-  ```bash
-  pip install reportlab
-  ```
-  *Note: The primary GST Tax Invoice / RA Bill PDF generator (`src/lib/pdf/invoice-generator.ts`) runs purely in Node.js via `jsPDF` and requires no Python.*
+- **Pure JavaScript/TypeScript Stack**: Zero Python, ReportLab, or OS-level binary dependencies required. Both the GST Tax Invoice generator ([`src/lib/pdf/invoice-generator.ts`](file:///g:/369/src/lib/pdf/invoice-generator.ts)) and the Subcontractor KYC Empanelment Dossier generator ([`src/lib/pdf/dossier-generator.ts`](file:///g:/369/src/lib/pdf/dossier-generator.ts)) execute natively in-memory via `jsPDF`.
 
 ---
 
@@ -32,10 +28,12 @@ cp .env.example .env.local
 ### Environment Variable Catalog
 
 | Variable | Required | Default / Reference Value | Description |
-| :--- | :--- | :--- | :--- |
+| :--- | :---: | :--- | :--- |
 | `NEXT_PUBLIC_SUPABASE_URL` | **Yes** | `https://gpwkxifefmygoexiepws.supabase.co` | Supabase project REST & Realtime endpoint |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **Yes** | `sb_publishable_NE1LcsxqP1EAtTNsA1zLkA_Mgr98evi` | Public client anon key for browser & SSR clients |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Optional | `sb_publishable_NE1LcsxqP1EAtTNsA1zLkA_Mgr98evi` | Backward-compatibility alias for latest Supabase SSR |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional | *(Service Role Key)* | Privileged server-side key for administrative database operations (bypasses RLS) |
+| `NEXT_PUBLIC_SENTRY_DSN` | Optional | *(Sentry DSN URL)* | Sentry client & server error telemetry ingestion endpoint |
 | `MSG91_AUTH_KEY` | Optional | *(None)* | TRAI DLT transactional SMS auth key |
 | `MSG91_TEMPLATE_ID` | Optional | *(None)* | Approved DLT transactional OTP template ID |
 | `TWILIO_ACCOUNT_SID` | Optional | *(None)* | Twilio SMS API Account SID |
@@ -54,7 +52,13 @@ cp .env.example .env.local
 npm install
 ```
 
-### Step 2: Start Development Server
+### Step 2: Execute Automated Quality Suite
+```bash
+npm test
+```
+Executes all 36 automated unit and integration tests across Zod schemas, billing calculations, and authentication vault.
+
+### Step 3: Start Development Server
 ```bash
 npm run dev
 ```
@@ -74,7 +78,7 @@ npx tsc --noEmit
 ```bash
 npm run build
 ```
-Next.js compiles all 26 static and dynamic routes. You should see `✓ Generating static pages (26/26)` and `Compiled successfully`.
+Next.js compiles all routes, error boundaries, and API handlers. You should see `Compiled successfully` with zero errors.
 
 ### Step 3: Launch Production Server
 ```bash
@@ -104,6 +108,16 @@ If configuring a fresh Supabase PostgreSQL project, execute the SQL scripts in t
   ```
 - Seeds initial sample RA bills (`SS/2026/RA-01`, `SS/2026/RA-02`).
 
+### Step 3: Execute Admin Identity Vault Migration (`supabase/migrations/20260925000000_create_admins_vault.sql`)
+- Provisions the isolated `public.system_admins` cryptographic vault table.
+- Stores bcrypt-hashed passwords (salt rounds: 10/12) and tracks `failed_login_attempts`, `locked_until`, and `last_login`.
+- Attaches RLS policy denying all public/anon access (`service_role` privileged access only).
+- Seeds initial SuperAdmin record (`dispatcher@369akruniverse.in`).
+- Use [`scripts/generate-admin-hash.js`](file:///g:/369/scripts/generate-admin-hash.js) to generate new password hashes:
+  ```bash
+  node scripts/generate-admin-hash.js "YourSecurePassword"
+  ```
+
 ---
 
 ## 6. Demo Credentials & Operational Runbook
@@ -117,32 +131,40 @@ If configuring a fresh Supabase PostgreSQL project, execute the SQL scripts in t
 
 ---
 
-## 7. Cloud Deployment Considerations
+## 7. Cloud Deployment & Observability Runbook
 
 1. **Vercel / Cloudflare / Netlify Serverless**:
-   - The primary application (Next.js 15, Supabase SSR, jsPDF Tax Invoices) is 100% serverless compatible.
-   - Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the hosting dashboard.
-2. **Python Subprocess Caveat**:
-   - The route `GET /api/subcontractors/export-pdf` attempts to spawn a local Python process to run `scripts/generate_369_sop_vendor_dossier_pdf.py`. On standard Vercel serverless functions, Python may not be available in the runtime image unless configured via custom Docker or Nixpacks.
-   - The route contains a fallback handler to serve pre-generated files if Python execution fails.
+   - The application (Next.js 15, Supabase SSR, jsPDF Tax Invoices, jsPDF Vendor Dossiers) is **100% serverless-native**.
+   - No Python runtime or external OS binaries are required.
+   - Configure environment variables in the hosting dashboard:
+     - `NEXT_PUBLIC_SUPABASE_URL`
+     - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+     - `SUPABASE_SERVICE_ROLE_KEY`
+     - `NEXT_PUBLIC_SENTRY_DSN`
+2. **Production Fail-Fast Database Circuit**:
+   - In production (`NODE_ENV === 'production'`), API route handlers strictly fail-fast and return HTTP 500 when Supabase is unreachable or database writes fail, completely blocking fallback to in-memory state to protect ledger integrity.
+   - All failures emit structured telemetry logs to Sentry and stdout (Datadog/Axiom).
+3. **Observability & Error Boundaries**:
+   - Nested route crashes are captured by [`src/app/error.tsx`](file:///g:/369/src/app/error.tsx).
+   - Root layout crashes are isolated by [`src/app/global-error.tsx`](file:///g:/369/src/app/global-error.tsx).
+   - Real-time error telemetry is managed by the singleton [`src/lib/logger.ts`](file:///g:/369/src/lib/logger.ts).
 
 ---
 
 ## 8. Continuous Integration & Quality Gates (CI/CD)
 
-The repository enforces enterprise-grade automated quality gates via GitHub Actions ([`.github/workflows/production-gate.yml`](../.github/workflows/production-gate.yml)) and GitHub Branch Rulesets targeting the `main` branch.
+The repository enforces enterprise-grade automated quality gates via GitHub Actions ([`.github/workflows/production-gate.yml`](file:///g:/369/.github/workflows/production-gate.yml)) and GitHub Branch Rulesets targeting the `main` branch.
 
-### Automated Quality Gate Matrix
+### Automated Quality Gate Sequence
 Every `push` to `main` and all `pull_request` events automatically execute the following stages in Node.js 22.x LTS:
 1. **Dependency & Build Caching**: Caches `~/.npm` via `actions/setup-node@v4` and `.next/cache` via `actions/cache@v4`.
 2. **Static Analysis & Linting**: Executes `npm run lint` (ESLint with Next.js core web vitals).
 3. **Strict Type-Safety**: Executes `npx tsc --noEmit` to ensure 0 TypeScript compilation errors.
 4. **Automated Unit & Integration Testing**: Executes `npm test` running 36 passing Vitest test suites (Zod validation, cryptographic auth vault, jsPDF GST tax invoices, and vendor compliance dossiers).
-5. **Production Build Verification**: Executes `npm run build` validating that all 26 App Router routes statically compile without errors.
+5. **Production Build Verification**: Executes `npm run build` validating that all routes statically compile without errors.
 
 ### Branch Protection Ruleset
 The `main` branch is protected by the **Production Quality Gate** ruleset:
 - Restricts branch deletions and blocks force pushes (`git push --force`).
 - Requires a pull request before merging with automated approval dismissals on new commits.
 - Enforces that the `Production Quality Gate` status check must pass cleanly before merge.
-
